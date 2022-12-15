@@ -1,7 +1,7 @@
 from ax.service.ax_client import AxClient
 from ax.utils.measurement.synthetic_functions import hartmann6
 from ax.utils.notebook.plotting import render, init_notebook_plotting
-#import sys 
+
 
 init_notebook_plotting()
 
@@ -86,13 +86,8 @@ print(means)
 print(hartmann6.fmin)
 
 #Render HP-Space and optimization trace
-#Func = open("graph.html","w")
-#sys.stdout = open(r"C:\Users\Amega\OneDrive\Desktop\Git\bachelorproject_online\significance_analysis\22_12_12_AxTutorial\log.txt", "w")
-
-
-# Adding input data to the HTML file
 render(ax_client.get_contour_plot())
-#Func.close()
+
 #Render for x3 and x4 for both norms
 render(ax_client.get_contour_plot(param_x="x3", param_y="x4", metric_name="l2norm"))
 
