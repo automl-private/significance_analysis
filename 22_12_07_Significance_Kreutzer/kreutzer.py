@@ -5,7 +5,7 @@ import scipy.stats as stats
 import pyreadr
 
 print("Starting")
-eval_data=pyreadr.read_r(r"C:\Users\Amega\OneDrive\Desktop\Git\bachelorproject\22_12_08_NLP\data_ter.rds")[None]
+eval_data=pyreadr.read_r(r"C:\Users\Amega\OneDrive\Desktop\Git\bachelorproject_online\significance_analysis\22_12_07_Significance_Kreutzer\data_ter.rds")[None]
 eval_data = eval_data.astype({"sentence_id" : 'category', "system" : 'category'})
 print(eval_data)
 
@@ -16,7 +16,8 @@ print(eval_data)
 differentMeans_model = Lmer(formula = "ter ~ system + (1 | sentence_id)", data = eval_data)
 #When using GLRT, set REML to false
 #factors specifies names of system_identifier, i.e. Baseline, or Algorithm1
-differentMeans_model.fit(factors = {"system" : ["Baseline", "Marking", "PostEdit"]}, REML = False, summarize = False)
+differentMeans_model.fit(factors = {"system" : list(eval_data["system"].unique())}, REML = False, summarize = False)
+
 
 #"Common"-Model assumes no significant difference, which is why the system-identifier is not included
 commonMean_model = Lmer(formula = "ter ~ (1 | sentence_id)", data = eval_data)
