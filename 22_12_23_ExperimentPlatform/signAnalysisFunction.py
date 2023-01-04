@@ -2,9 +2,8 @@ import numpy  as np
 import pandas as pd
 from pymer4.models import Lmer
 import scipy.stats as stats 
-import pyreadr
 
-data=pd.read_pickle('./concatData.pkl')
+data=pd.read_pickle(r'C:\Users\Amega\OneDrive\Desktop\Git\bachelorproject_online\significance_analysis\22_12_23_ExperimentPlatform\concatData.pkl')
 metric="mean"
 system_id="algorithm"
 input_id="benchmark"
