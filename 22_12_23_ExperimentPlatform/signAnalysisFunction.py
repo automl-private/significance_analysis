@@ -24,7 +24,27 @@ def GLRT(mod1, mod2):
     }
 
 
-def checkSignificance(data: pd.DataFrame, metric: str, system_id: str, input_id: str):
+def checkSignificance(
+    data: pd.DataFrame,
+    metric: str,
+    system_id: str,
+    input_id: str,
+    bin_id: str = None,
+    bin_labels: list[str] = None,
+    bin_dividers: list[float] = None,
+):
+
+    if bin_id is not None and bin_labels is not None and bin_dividers is not None:
+        if not 0 in bin_dividers:
+            bin_dividers.append(0)
+        if not 1 in bin_dividers:
+            bin_dividers.append(1)
+        bin_dividers.sort()
+        if len(bin_labels) != (len(bin_dividers) - 1):
+            try:
+                raise KeyboardInterrupt
+            finally:
+                print("Dividiers do not fit divider-labels")
 
     # System-identifier: system_id
     # Input-Identifier: input_id
@@ -53,26 +73,8 @@ def checkSignificance(data: pd.DataFrame, metric: str, system_id: str, input_id:
     # [1] shows the pairwise comparisons, i.e. improvements over each other, with p-value
     print(post_hoc_results[1])  # contrasts (group differences)
 
-
-def checkSignificanceBinned(
-    data: pd.DataFrame,
-    metric: str,
-    system_id: str,
-    input_id: str,
-    bin_id: str,
-    bin_labels: list[str],
-    bin_dividers: list[float],
-):
-    if not 0 in bin_dividers:
-        bin_dividers.append(0)
-    if not 1 in bin_dividers:
-        bin_dividers.append(1)
-    bin_dividers.sort()
-    if len(bin_labels) != (len(bin_dividers) - 1):
-        try:
-            raise KeyboardInterrupt
-        finally:
-            print("Dividiers do not fit divider-labels")
+    if not (bin_id is not None and bin_labels is not None and bin_dividers is not None):
+        return
 
     bins = []
     for div in bin_dividers:
@@ -132,6 +134,4 @@ def checkSignificanceBinned(
         print(post_hoc_results[1].query("bin_class == '" + bin_class + "'"))
 
 
-checkSignificanceBinned(
-    data, metric, system_id, input_id, bin_id, bin_labels, bin_dividers
-)
+checkSignificance(data, metric, system_id, input_id, bin_id, bin_labels, bin_dividers)
