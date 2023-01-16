@@ -11,6 +11,7 @@ from ax import (
     SearchSpace,
 )
 from ax.metrics.branin import BraninMetric
+from ax.metrics.hartmann6 import Hartmann6Metric
 from ax.modelbridge.registry import Models  # , Cont_X_trans,Y_trans
 
 # Ax wrappers for BoTorch components
@@ -28,22 +29,6 @@ from botorch.models.gp_regression import FixedNoiseGP, SingleTaskGP
 
 # Experiment examination utilities
 # from ax.service.utils.report_utils import exp_to_df
-
-
-# from typing import Any, Dict, Optional, Tuple, Type
-
-
-# Ax data tranformation layer
-# from ax.modelbridge.torch import TorchModelBridge
-# from ax.models.torch.botorch_modular.acquisition import Acquisition
-# from ax.models.torch.botorch_modular.list_surrogate import ListSurrogate
-
-
-# from ax.service.ax_client import AxClient
-
-
-# from ax.utils.measurement.synthetic_functions import branin
-
 
 # BoTorch components
 # from botorch.models.model import Model
@@ -71,8 +56,27 @@ chosenAlgorithm = int(
         + ") "
     )
 )
+
 chosenAqu = int(chosenAlgorithm / len(surrogateFunctions))
 chosenSurr = chosenAlgorithm % len(surrogateFunctions)
+if chosenBenchmark == 0:
+    metric = BraninMetric(name="branin", param_names=["x1", "x2"])
+    parameterlist = [
+        RangeParameter(name="x1", parameter_type=ParameterType.FLOAT, lower=-5, upper=10),
+        RangeParameter(name="x2", parameter_type=ParameterType.FLOAT, lower=0, upper=15),
+    ]
+elif chosenBenchmark == 1:
+    metric = Hartmann6Metric(
+        name="hartmann6", param_names=["x1", "x2", "x3", "x4", "x5", "x6"]
+    )
+    parameterlist = [
+        RangeParameter(name="x1", parameter_type=ParameterType.FLOAT, lower=0, upper=1),
+        RangeParameter(name="x2", parameter_type=ParameterType.FLOAT, lower=0, upper=1),
+        RangeParameter(name="x3", parameter_type=ParameterType.FLOAT, lower=0, upper=1),
+        RangeParameter(name="x4", parameter_type=ParameterType.FLOAT, lower=0, upper=1),
+        RangeParameter(name="x5", parameter_type=ParameterType.FLOAT, lower=0, upper=1),
+        RangeParameter(name="x6", parameter_type=ParameterType.FLOAT, lower=0, upper=1),
+    ]
 
 
 class MockRunner(Runner):
@@ -81,27 +85,12 @@ class MockRunner(Runner):
         return {"name": str(trial.index)}
 
 
-"""
-TO-DO:
-Get from benchmark
-"""
-exp_search_space = SearchSpace(
-    parameters=[
-        RangeParameter(name="x1", parameter_type=ParameterType.FLOAT, lower=-5, upper=10),
-        RangeParameter(name="x2", parameter_type=ParameterType.FLOAT, lower=0, upper=15),
-    ]
-)
-
-"""
-TO-DO:
-Get metric from benchmark
-"""
 exp = Experiment(
     name="experiment" + str(chosenAlgorithm),
-    search_space=exp_search_space,
+    search_space=SearchSpace(parameters=parameterlist),
     optimization_config=OptimizationConfig(
         objective=Objective(
-            metric=BraninMetric(name="branin", param_names=["x1", "x2"]),
+            metric=metric,
             minimize=True,
         ),
     ),
