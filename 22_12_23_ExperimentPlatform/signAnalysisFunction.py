@@ -64,7 +64,8 @@ def checkSignificance(
 
     # Signficant p-value shows, that different-Model fits data sign. better, i.e.
     # There is signficant difference in system-identifier
-    print(GLRT(differentMeans_model, commonMean_model))
+    result_GLRT_dM_cM = GLRT(differentMeans_model, commonMean_model)
+    print(result_GLRT_dM_cM)
 
     # Post hoc divides the "different"-Model into its three systems
     post_hoc_results = differentMeans_model.post_hoc(marginal_vars=[system_id])
@@ -74,7 +75,7 @@ def checkSignificance(
     print(post_hoc_results[1])  # contrasts (group differences)
 
     if not (bin_id is not None and bin_labels is not None and bin_dividers is not None):
-        return
+        return result_GLRT_dM_cM, post_hoc_results
 
     bins = []
     for div in bin_dividers:
@@ -90,14 +91,16 @@ def checkSignificance(
     )
     # New model "expanded": Divides into system AND bin-classes (Term system:bin_class allows for Cartesian Product, i.e. different Mean for each system and bin-class)
     model_expanded = Lmer(
-        metric
-        + " ~ "
-        + system_id
-        + " + bin_class + "
-        + system_id
-        + ":bin_class + (1 | "
-        + input_id
-        + ")",
+        (
+            metric
+            + " ~ "
+            + system_id
+            + " + bin_class + "
+            + system_id
+            + ":bin_class + (1 | "
+            + input_id
+            + ")"
+        ),
         data=data,
     )
     model_expanded.fit(
@@ -122,16 +125,19 @@ def checkSignificance(
     )
 
     # If it's significant, look at if different systems perform better at different bin-classes
-    print(GLRT(model_expanded, model_nointeraction))  # test interaction
+    result_GLRT_ex_ni = GLRT(model_expanded, model_nointeraction)
+    print(result_GLRT_ex_ni)  # test interaction
 
-    post_hoc_results = model_expanded.post_hoc(
+    post_hoc_results2 = model_expanded.post_hoc(
         marginal_vars=system_id, grouping_vars="bin_class"
     )
     # Means of each combination
-    print(post_hoc_results[0])
+    print(post_hoc_results2[0])
     # Comparisons for each combination
     for bin_class in bin_labels:
-        print(post_hoc_results[1].query("bin_class == '" + bin_class + "'"))
+        print(post_hoc_results2[1].query("bin_class == '" + bin_class + "'"))
+
+    return result_GLRT_dM_cM, post_hoc_results, result_GLRT_ex_ni, post_hoc_results2
 
 
 checkSignificance(data, metric, system_id, input_id, bin_id, bin_labels, bin_dividers)
