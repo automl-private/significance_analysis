@@ -1,5 +1,4 @@
 {
     "python.analysis.typeCheckingMode": "off",
-    "python.pythonPath": "C:/Users/Amega/AppData/Local/pypoetry/Cache/virtualenvs/significance-testing-E66PnwGt-py3.9",
-	"python.defaultInterpreterPath": "C:/Users/Amega/AppData/Local/pypoetry/Cache/virtualenvs/significance-testing-E66PnwGt-py3.9/Scripts/python.exe"
+    "python.defaultInterpreterPath": "./.venv/Scripts/python.exe"
 }
