@@ -1,7 +1,7 @@
 import pandas as pd
 
 numberOfAquFunctions = 2
-numberOfSurrFunctions = 1
+numberOfSurrFunctions = 2
 numberOfBenchmarks = 2
 
 dfList = []
@@ -9,9 +9,17 @@ dfList = []
 for aqu in range(numberOfAquFunctions):
     for surr in range(numberOfSurrFunctions):
         for ben in range(numberOfBenchmarks):
+            print("./results/b" + str(ben) + "a" + str(aqu) + "s" + str(surr) + ".pkl")
             dfList.append(
                 pd.read_pickle(
-                    "./results/b" + str(ben) + "a" + str(aqu) + "s" + str(surr) + ".pkl"
+                    "C:/Users/Amega/OneDrive/Desktop/Git/bachelorproject_online/significance_analysis/22_12_23_ExperimentPlatform/results"
+                    + "/b"
+                    + str(ben)
+                    + "a"
+                    + str(aqu)
+                    + "s"
+                    + str(surr)
+                    + ".pkl"
                 )
             )
 
