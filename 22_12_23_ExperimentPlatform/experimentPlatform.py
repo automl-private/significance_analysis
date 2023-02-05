@@ -27,6 +27,9 @@ from botorch.acquisition.monte_carlo import (
 )
 from botorch.models.gp_regression import FixedNoiseGP, SingleTaskGP
 
+# import jahs_bench
+
+
 # Experiment examination utilities
 # from ax.service.utils.report_utils import exp_to_df
 
@@ -77,6 +80,10 @@ elif chosenBenchmark == 1:
         RangeParameter(name="x5", parameter_type=ParameterType.FLOAT, lower=0, upper=1),
         RangeParameter(name="x6", parameter_type=ParameterType.FLOAT, lower=0, upper=1),
     ]
+elif chosenBenchmark == 2:
+    # jahsBenchmark=jahs_bench.Benchmark(task="cifar10", download=True)
+    # metric =
+    print("Hello")
 
 
 class MockRunner(Runner):
