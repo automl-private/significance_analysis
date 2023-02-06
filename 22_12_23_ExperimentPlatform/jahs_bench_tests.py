@@ -1,10 +1,13 @@
 import jahs_bench
 
-# import pandas
+benchmark = jahs_bench.Benchmark(task="cifar10", download=True)
 
-benchmark = jahs_bench.Benchmark(task="cifar10")
-
+# Query a random configuration
 config = benchmark.sample_config()
-print(config)
 results = benchmark(config, nepochs=1)
-print(results)
+
+# Display the outputs
+print(f"Config: {config}")  # A dict
+print(
+    f"Result: {results}"
+)  # A dict of dicts, indexed first by epoch and then by metric name
