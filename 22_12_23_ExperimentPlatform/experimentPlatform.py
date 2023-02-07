@@ -1,8 +1,13 @@
 import os
 
-# import pandas as pd
+import jahs_bench
+import pandas as pd
 from ax import (
+    ChoiceParameter,
+    Data,
     Experiment,
+    FixedParameter,
+    Metric,
     Objective,
     OptimizationConfig,
     ParameterType,
@@ -12,30 +17,15 @@ from ax import (
 )
 from ax.metrics.branin import BraninMetric
 from ax.metrics.hartmann6 import Hartmann6Metric
-from ax.modelbridge.registry import Models  # , Cont_X_trans,Y_trans
-
-# Ax wrappers for BoTorch components
-# from ax.models.torch.botorch_modular.model import BoTorchModel
+from ax.modelbridge.registry import Models
 from ax.models.torch.botorch_modular.surrogate import Surrogate
-
-# Test Ax objects
-# from ax.utils.testing.core_stubs import (get_branin_data,get_branin_data_multi_objective,get_branin_experiment,get_branin_experiment_with_multi_objective,)
+from ax.utils.common.result import Ok
 from botorch.acquisition.analytic import ExpectedImprovement
 from botorch.acquisition.monte_carlo import (
     qExpectedImprovement,
     qNoisyExpectedImprovement,
 )
 from botorch.models.gp_regression import FixedNoiseGP, SingleTaskGP
-
-# import jahs_bench
-
-
-# Experiment examination utilities
-# from ax.service.utils.report_utils import exp_to_df
-
-# BoTorch components
-# from botorch.models.model import Model
-# from gpytorch.mlls.exact_marginal_log_likelihood import ExactMarginalLogLikelihood
 
 aquisitonFunctions = [
     qExpectedImprovement,
@@ -49,7 +39,7 @@ TO-DO:
 Get from terminal/hydra
 """
 numberOfSobolRounds = 5
-numberOfBotorchRounds = 5
+numberOfBotorchRounds = 15
 chosenBenchmark = int(input("Which benchmark? "))
 chosenRandomSeed = int(input("Which seed? "))
 chosenAlgorithm = int(
@@ -81,9 +71,75 @@ elif chosenBenchmark == 1:
         RangeParameter(name="x6", parameter_type=ParameterType.FLOAT, lower=0, upper=1),
     ]
 elif chosenBenchmark == 2:
-    # jahsBenchmark=jahs_bench.Benchmark(task="cifar10", download=True)
-    # metric =
-    print("Hello")
+    jahs_benchmark = jahs_bench.Benchmark(task="cifar10")
+
+    class JAHSMetric(Metric):
+        def fetch_trial_data(self, trial):
+            records = []
+            for arm_name, arm in trial.arms_by_name.items():
+                params = arm.parameters
+                nepochs = params.pop("epoch")
+                results = jahs_benchmark(params, nepochs)
+                records.append(
+                    {
+                        "arm_name": arm_name,
+                        "metric_name": self.name,
+                        "trial_index": trial.index,
+                        "mean": results[nepochs]["valid-acc"],
+                        "sem": 0,
+                    }
+                )
+            return Ok(value=Data(df=pd.DataFrame.from_records(records)))
+
+    metric = JAHSMetric("JAHS")
+
+    parameterlist = [
+        ChoiceParameter(
+            "Activation",
+            ParameterType.STRING,
+            ["ReLU", "Hardswish", "Mish"],
+            False,
+            sort_values=False,
+        ),
+        RangeParameter("LearningRate", ParameterType.FLOAT, 0, 1e-3),
+        RangeParameter("WeightDecay", ParameterType.FLOAT, 1e-5, 1e-2),
+        ChoiceParameter(
+            "TrivialAugment", ParameterType.BOOL, [True, False], True, sort_values=False
+        ),
+        ChoiceParameter(
+            "Op1", ParameterType.INT, [0, 1, 2, 3, 4], False, sort_values=True
+        ),
+        ChoiceParameter(
+            "Op2", ParameterType.INT, [0, 1, 2, 3, 4], False, sort_values=True
+        ),
+        ChoiceParameter(
+            "Op3", ParameterType.INT, [0, 1, 2, 3, 4], False, sort_values=True
+        ),
+        ChoiceParameter(
+            "Op4", ParameterType.INT, [0, 1, 2, 3, 4], False, sort_values=True
+        ),
+        ChoiceParameter(
+            "Op5", ParameterType.INT, [0, 1, 2, 3, 4], False, sort_values=True
+        ),
+        ChoiceParameter(
+            "Op6", ParameterType.INT, [0, 1, 2, 3, 4], False, sort_values=True
+        ),
+        ChoiceParameter(
+            "N", ParameterType.INT, [1, 3, 5], sort_values=True, is_ordered=False
+        ),
+        ChoiceParameter(
+            "W", ParameterType.INT, [4, 8, 16], sort_values=True, is_ordered=False
+        ),
+        ChoiceParameter(
+            "Resolution",
+            ParameterType.FLOAT,
+            [0.25, 0.5, 1],
+            is_ordered=False,
+            sort_values=True,
+        ),
+        RangeParameter("epoch", ParameterType.INT, 1, 200),
+        FixedParameter("Optimizer", ParameterType.STRING, "SGD"),
+    ]
 
 
 class MockRunner(Runner):
@@ -132,17 +188,20 @@ df.insert(0, "seed", str(chosenRandomSeed))
 df = df.drop("arm_name", axis="columns")
 df = df.rename(columns={"trial_index": "budget"})
 print(df)
-os.makedirs("./results", exist_ok=True)
 
 
-df.to_pickle(
-    "./results/b"
-    + str(chosenBenchmark)
-    + "a"
-    + str(chosenAqu)
-    + "s"
-    + str(chosenSurr)
-    + ".pkl"
-)
+saveResults = False
+if saveResults:
+    os.makedirs("./results", exist_ok=True)
+
+    df.to_pickle(
+        "./results/b"
+        + str(chosenBenchmark)
+        + "a"
+        + str(chosenAqu)
+        + "s"
+        + str(chosenSurr)
+        + ".pkl"
+    )
 
 print("finished")
