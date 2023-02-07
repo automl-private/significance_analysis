@@ -39,7 +39,7 @@ TO-DO:
 Get from terminal/hydra
 """
 numberOfSobolRounds = 5
-numberOfBotorchRounds = 15
+numberOfBotorchRounds = 25
 chosenBenchmark = int(input("Which benchmark? "))
 chosenRandomSeed = int(input("Which seed? "))
 chosenAlgorithm = int(
@@ -85,8 +85,8 @@ elif chosenBenchmark == 2:
                         "arm_name": arm_name,
                         "metric_name": self.name,
                         "trial_index": trial.index,
-                        "mean": results[nepochs]["valid-acc"],
-                        "sem": 0,
+                        "mean": -results[nepochs]["valid-acc"],
+                        "sem": 0.0,
                     }
                 )
             return Ok(value=Data(df=pd.DataFrame.from_records(records)))
