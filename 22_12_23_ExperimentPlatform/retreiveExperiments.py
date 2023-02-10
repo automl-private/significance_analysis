@@ -12,7 +12,7 @@ for aqu in range(numberOfAquFunctions):
             print("./results/b" + str(ben) + "a" + str(aqu) + "s" + str(surr) + ".pkl")
             dfList.append(
                 pd.read_pickle(
-                    "C:/Users/Amega/OneDrive/Desktop/Git/bachelorproject_online/significance_analysis/22_12_23_ExperimentPlatform/results"
+                    "C:/Users/Amega/Git/bachelorproject_online/significance_analysis/22_12_23_ExperimentPlatform/results"
                     + "/b"
                     + str(ben)
                     + "a"
