@@ -1,5 +1,6 @@
 import os
 
+#from hpobench.benchmarks.ml.nn_benchmark import NNBenchmark
 import jahs_bench
 import pandas as pd
 from ax import (
@@ -141,6 +142,38 @@ elif chosenBenchmark == 2:
         FixedParameter("Optimizer", ParameterType.STRING, "SGD"),
     ]
 
+#HPO_Bench_NN_Integration: (uncomment Import to work. Problem: getuid()-Command used in PIP/Poetry-Import only works on Linux)
+'''
+elif chosenBenchmark == 3:
+    HPOnnBenchmark=NNBenchmark(task_id=1)
+
+    class HPOBench_NN_Metric(Metric):
+        def fetch_trial_data(self, trial):
+            records = []
+            for arm_name, arm in trial.arms_by_name.items():
+                params = arm.parameters
+                results = HPOnnBenchmark.objective_function(params)
+                records.append(
+                    {
+                        "arm_name": arm_name,
+                        "metric_name": self.name,
+                        "trial_index": trial.index,
+                        "mean": results["function_value"],
+                        "sem": 0,
+                    }
+                )
+            return Ok(value=Data(df=pd.DataFrame.from_records(records)))
+        
+    metric=HPOBench_NN_Metric("HPO_NN_metric")
+
+    parameterlist=[
+        RangeParameter("alpha",ParameterType.FLOAT,1e-08,1-0,True),
+        RangeParameter("batch_size",ParameterType.INT,4,256,True),
+        RangeParameter("depth",ParameterType.INT,1,3),
+        RangeParameter("learning_rate_init",ParameterType.FLOAT,1e-05,1.0,True),
+        RangeParameter("width",ParameterType.INT,16,1024,True)
+    ]
+'''
 
 class MockRunner(Runner):
     @classmethod

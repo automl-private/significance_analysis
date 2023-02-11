@@ -70,7 +70,7 @@ class JAHS_BENCH_Metric(Metric):
                     "arm_name": arm_name,
                     "metric_name": self.name,
                     "trial_index": trial.index,
-                    "mean": results[nepochs]["valid-acc"],
+                    "mean": 100-results[nepochs]["valid-acc"],
                     "sem": 0,
                 }
             )
