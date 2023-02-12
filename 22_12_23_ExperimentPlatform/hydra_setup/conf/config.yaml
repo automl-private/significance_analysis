@@ -1,0 +1,14 @@
+defaults:
+  - aquisitionFunction: expectedImprovement
+  - surrogateFunction: SingleTaskGP
+  - benchmark: hartmann6
+  - experimentConfig: s5b15sF
+  - _self_
+
+hydra:
+  sweeper:
+    params:
+      aquisitionFunction: glob(*)
+      surrogateFunction: glob(*)
+      benchmark: glob(*)
+      experimentConfig: s5b15sF

@@ -28,7 +28,7 @@ class HPOBench_NN_Metric(Metric):
         records = []
         for arm_name, arm in trial.arms_by_name.items():
             params = arm.parameters
-            results = HPOnnBenchmark.objective_function(params)
+            results = HPOnnBenchmark.objective_function(params,)
             records.append(
                 {
                     "arm_name": arm_name,
