@@ -1,6 +1,6 @@
 #from hpobench.benchmarks.ml.nn_benchmark import NNBenchmark
 import os
-import numpy
+import numpy 
 import jahs_bench
 import pandas as pd
 from ax import (
