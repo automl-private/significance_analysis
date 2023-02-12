@@ -2,10 +2,15 @@ import numpy as np
 import pandas as pd
 import scipy.stats as stats
 from pymer4.models import Lmer
+import os
 
-data = pd.read_pickle(
-    r"C:\Users\Amega\OneDrive\Desktop\Git\bachelorproject_online\significance_analysis\22_12_23_ExperimentPlatform\concatData.pkl"
-)
+dfList = []
+filesList=os.listdir("./experimentPlatform/Results")
+print(filesList)
+for file in filesList:
+    dfList.append(pd.read_pickle(file))
+data = pd.concat(dfList)
+#data = pd.read_pickle("./experimentPlatform/concatData.pkl")
 metric = "mean"
 system_id = "algorithm"
 input_id = "benchmark"
@@ -14,14 +19,7 @@ bin_labels = ["short", "mediums", "mediuml", "long"]
 bin_dividers = [0.3, 0.5, 0.6, 1]
 
 
-def GLRT(mod1, mod2):
-    chi_square = 2 * abs(mod1.logLike - mod2.logLike)
-    delta_params = abs(len(mod1.coefs) - len(mod2.coefs))
-    return {
-        "chi_square": chi_square,
-        "df": delta_params,
-        "p": 1 - stats.chi2.cdf(chi_square, df=delta_params),
-    }
+
 
 
 def checkSignificance(
@@ -33,6 +31,14 @@ def checkSignificance(
     bin_labels: list[str] = None,
     bin_dividers: list[float] = None,
 ):
+    def GLRT(mod1, mod2):
+        chi_square = 2 * abs(mod1.logLike - mod2.logLike)
+        delta_params = abs(len(mod1.coefs) - len(mod2.coefs))
+        return {
+            "chi_square": chi_square,
+            "df": delta_params,
+            "p": 1 - stats.chi2.cdf(chi_square, df=delta_params),
+        }
 
     if bin_id is not None and bin_labels is not None and bin_dividers is not None:
         if not 0 in bin_dividers:

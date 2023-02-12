@@ -1114,14 +1114,14 @@ test = ["flaky", "ipyparallel", "pre-commit", "pytest (>=7.0)", "pytest-asyncio"
 
 [[package]]
 name = "ipython"
-version = "8.9.0"
+version = "8.10.0"
 description = "IPython: Productive Interactive Computing"
 category = "main"
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "ipython-8.9.0-py3-none-any.whl", hash = "sha256:9c207b0ef2d276d1bfcfeb9a62804336abbe4b170574ea061500952319b1d78c"},
-    {file = "ipython-8.9.0.tar.gz", hash = "sha256:71618e82e6d59487bea059626e7c79fb4a5b760d1510d02fab1160db6fdfa1f7"},
+    {file = "ipython-8.10.0-py3-none-any.whl", hash = "sha256:b38c31e8fc7eff642fc7c597061fff462537cf2314e3225a19c906b7b0d8a345"},
+    {file = "ipython-8.10.0.tar.gz", hash = "sha256:b13a1d6c1f5818bd388db53b7107d17454129a70de2b87481d555daede5eb49e"},
 ]
 
 [package.dependencies]
@@ -1139,7 +1139,7 @@ stack-data = "*"
 traitlets = ">=5"
 
 [package.extras]
-all = ["black", "curio", "docrepr", "ipykernel", "ipyparallel", "ipywidgets", "matplotlib", "matplotlib (!=3.2.0)", "nbconvert", "nbformat", "notebook", "numpy (>=1.20)", "pandas", "pytest (<7)", "pytest (<7.1)", "pytest-asyncio", "qtconsole", "setuptools (>=18.5)", "sphinx (>=1.3)", "sphinx-rtd-theme", "stack-data", "testpath", "trio", "typing-extensions"]
+all = ["black", "curio", "docrepr", "ipykernel", "ipyparallel", "ipywidgets", "matplotlib", "matplotlib (!=3.2.0)", "nbconvert", "nbformat", "notebook", "numpy (>=1.21)", "pandas", "pytest (<7)", "pytest (<7.1)", "pytest-asyncio", "qtconsole", "setuptools (>=18.5)", "sphinx (>=1.3)", "sphinx-rtd-theme", "stack-data", "testpath", "trio", "typing-extensions"]
 black = ["black"]
 doc = ["docrepr", "ipykernel", "matplotlib", "pytest (<7)", "pytest (<7.1)", "pytest-asyncio", "setuptools (>=18.5)", "sphinx (>=1.3)", "sphinx-rtd-theme", "stack-data", "testpath", "typing-extensions"]
 kernel = ["ipykernel"]
@@ -1149,7 +1149,7 @@ notebook = ["ipywidgets", "notebook"]
 parallel = ["ipyparallel"]
 qtconsole = ["qtconsole"]
 test = ["pytest (<7.1)", "pytest-asyncio", "testpath"]
-test-extra = ["curio", "matplotlib (!=3.2.0)", "nbformat", "numpy (>=1.20)", "pandas", "pytest (<7.1)", "pytest-asyncio", "testpath", "trio"]
+test-extra = ["curio", "matplotlib (!=3.2.0)", "nbformat", "numpy (>=1.21)", "pandas", "pytest (<7.1)", "pytest-asyncio", "testpath", "trio"]
 
 [[package]]
 name = "ipython-genutils"
@@ -1165,14 +1165,14 @@ files = [
 
 [[package]]
 name = "ipywidgets"
-version = "7.7.2"
+version = "7.7.3"
 description = "IPython HTML widgets for Jupyter"
 category = "main"
 optional = false
 python-versions = "*"
 files = [
-    {file = "ipywidgets-7.7.2-py2.py3-none-any.whl", hash = "sha256:3d47a7826cc6e2644d7cb90db26699451f8b42379cf63b761431b63d19984ca2"},
-    {file = "ipywidgets-7.7.2.tar.gz", hash = "sha256:449ab8e7872d0f388ee5c5b3666b9d6af5e5618a5749fd62652680be37dff2af"},
+    {file = "ipywidgets-7.7.3-py2.py3-none-any.whl", hash = "sha256:c537a31feb4717d42b2331c9201a5c08e214693ca7439563fd4f1b64705312b9"},
+    {file = "ipywidgets-7.7.3.tar.gz", hash = "sha256:b41ca84d2742e39f2a730a13ea0dd619fca62e56cfac88c8f08989fb00a54fa8"},
 ]
 
 [package.dependencies]
@@ -1471,14 +1471,14 @@ files = [
 
 [[package]]
 name = "jupyterlab-widgets"
-version = "1.1.1"
+version = "1.1.2"
 description = "A JupyterLab extension."
 category = "main"
 optional = false
 python-versions = ">=3.6"
 files = [
-    {file = "jupyterlab_widgets-1.1.1-py3-none-any.whl", hash = "sha256:90ab47d99da03a3697074acb23b2975ead1d6171aa41cb2812041a7f2a08177a"},
-    {file = "jupyterlab_widgets-1.1.1.tar.gz", hash = "sha256:67d0ef1e407e0c42c8ab60b9d901cd7a4c68923650763f75bf17fb06c1943b79"},
+    {file = "jupyterlab_widgets-1.1.2-py3-none-any.whl", hash = "sha256:e7562e9d4ecb282f36f69fa4f1d0b23bda12db306b7aa981d47ba2a532e2ebe9"},
+    {file = "jupyterlab_widgets-1.1.2.tar.gz", hash = "sha256:e1cc529afd7d7d7bcce251a591ca32a7d3f6b05d326b9b7a8afa577d2639e29c"},
 ]
 
 [[package]]
@@ -2295,14 +2295,14 @@ tests = ["pytest", "pytest-cov", "pytest-pep8"]
 
 [[package]]
 name = "oslo-concurrency"
-version = "5.0.1"
+version = "5.1.0"
 description = "Oslo Concurrency library"
 category = "main"
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "oslo.concurrency-5.0.1-py3-none-any.whl", hash = "sha256:7a6b6a1aa28e65a7cbfc9e04ecc9cdcaf7f7a2ad6cdf37014b3694b627280f5f"},
-    {file = "oslo.concurrency-5.0.1.tar.gz", hash = "sha256:0dfbf36095f4637ffbb65e5c241f4c25851abd3b728dddad9f07396302a72544"},
+    {file = "oslo.concurrency-5.1.0-py3-none-any.whl", hash = "sha256:2317f0e345317d7429fde603daa9ab2897815b2999dcc4d4c01341afac662663"},
+    {file = "oslo.concurrency-5.1.0.tar.gz", hash = "sha256:8b2176c57cc549692b5c201b4c95aa578ae7ccdfa5c0f814c57818d69a6d4d51"},
 ]
 
 [package.dependencies]
@@ -2339,14 +2339,14 @@ test = ["bandit (>=1.6.0,<1.7.0)", "coverage (>=4.0,!=4.4)", "fixtures (>=3.0.0)
 
 [[package]]
 name = "oslo-i18n"
-version = "5.1.0"
+version = "6.0.0"
 description = "Oslo i18n library"
 category = "main"
 optional = false
-python-versions = ">=3.6"
+python-versions = ">=3.8"
 files = [
-    {file = "oslo.i18n-5.1.0-py3-none-any.whl", hash = "sha256:75086cfd898819638ca741159f677e2073a78ca86a9c9be8d38b46800cdf2dc9"},
-    {file = "oslo.i18n-5.1.0.tar.gz", hash = "sha256:6bf111a6357d5449640852de4640eae4159b5562bbba4c90febb0034abc095d0"},
+    {file = "oslo.i18n-6.0.0-py3-none-any.whl", hash = "sha256:080fedf41b05d4dcd23a91d23ee2dea0863996e860a59695856269a42d939fc1"},
+    {file = "oslo.i18n-6.0.0.tar.gz", hash = "sha256:ed10686b75f7c607825177a669155f4e259ce39f6143a375f6359bbcaa4a35cd"},
 ]
 
 [package.dependencies]
@@ -2986,14 +2986,14 @@ six = ">=1.5"
 
 [[package]]
 name = "python-json-logger"
-version = "2.0.4"
+version = "2.0.5"
 description = "A python library adding a json log formatter"
 category = "main"
 optional = false
-python-versions = ">=3.5"
+python-versions = ">=3.6"
 files = [
-    {file = "python-json-logger-2.0.4.tar.gz", hash = "sha256:764d762175f99fcc4630bd4853b09632acb60a6224acb27ce08cd70f0b1b81bd"},
-    {file = "python_json_logger-2.0.4-py3-none-any.whl", hash = "sha256:3b03487b14eb9e4f77e4fc2a023358b5394b82fd89cecf5586259baed57d8c6f"},
+    {file = "python-json-logger-2.0.5.tar.gz", hash = "sha256:3853e0b73e6c1ba4b1f2543066b24950bf1c21ed104f297a7bff8c74532a6ab2"},
+    {file = "python_json_logger-2.0.5-py3-none-any.whl", hash = "sha256:f389ccb0a8fd26f84c294dc627a999daf58f759b457ee022f698098f6547288d"},
 ]
 
 [[package]]
@@ -3513,14 +3513,14 @@ tests = ["cython", "littleutils", "pygments", "pytest", "typeguard"]
 
 [[package]]
 name = "stevedore"
-version = "4.1.1"
+version = "5.0.0"
 description = "Manage dynamic plugins for Python applications"
 category = "main"
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "stevedore-4.1.1-py3-none-any.whl", hash = "sha256:aa6436565c069b2946fe4ebff07f5041e0c8bf18c7376dd29edf80cf7d524e4e"},
-    {file = "stevedore-4.1.1.tar.gz", hash = "sha256:7f8aeb6e3f90f96832c301bff21a7eb5eefbe894c88c506483d355565d88cc1a"},
+    {file = "stevedore-5.0.0-py3-none-any.whl", hash = "sha256:bd5a71ff5e5e5f5ea983880e4a1dd1bb47f8feebbb3d95b592398e2f02194771"},
+    {file = "stevedore-5.0.0.tar.gz", hash = "sha256:2c428d2338976279e8eb2196f7a94910960d9f7ba2f41f3988511e95ca447021"},
 ]
 
 [package.dependencies]
@@ -3566,14 +3566,14 @@ doc = ["ipython", "numpydoc", "sphinx (>=1.1)", "sphinx-rtd-theme"]
 
 [[package]]
 name = "tenacity"
-version = "8.2.0"
+version = "8.2.1"
 description = "Retry code until it succeeds"
 category = "main"
 optional = false
 python-versions = ">=3.6"
 files = [
-    {file = "tenacity-8.2.0-py3-none-any.whl", hash = "sha256:b723061a78ed0f4524190eae321d3d84100227d51c5677035b6615d91895e0d6"},
-    {file = "tenacity-8.2.0.tar.gz", hash = "sha256:a43bcd8910406e0884ca0db3db7bed581f389c1d05165e992a1ddabfc81df05e"},
+    {file = "tenacity-8.2.1-py3-none-any.whl", hash = "sha256:dd1b769ca7002fda992322939feca5bee4fa11f39146b0af14e0b8d9f27ea854"},
+    {file = "tenacity-8.2.1.tar.gz", hash = "sha256:c7bb4b86425b977726a7b49971542d4f67baf72096597d283f3ffd01f33b92df"},
 ]
 
 [package.extras]
@@ -3926,14 +3926,14 @@ test = ["pytest (>=3.0.0)"]
 
 [[package]]
 name = "widgetsnbextension"
-version = "3.6.1"
+version = "3.6.2"
 description = "IPython HTML widgets for Jupyter"
 category = "main"
 optional = false
 python-versions = "*"
 files = [
-    {file = "widgetsnbextension-3.6.1-py2.py3-none-any.whl", hash = "sha256:954e0faefdd414e4e013f17dbc7fd86f24cf1d243a3ac85d5f0fc2c2d2b50c66"},
-    {file = "widgetsnbextension-3.6.1.tar.gz", hash = "sha256:9c84ae64c2893c7cbe2eaafc7505221a795c27d68938454034ac487319a75b10"},
+    {file = "widgetsnbextension-3.6.2-py2.py3-none-any.whl", hash = "sha256:ddc70ae828b5d5bfdeaa4444f11a2076a0b08216b82322f616439db25e259d22"},
+    {file = "widgetsnbextension-3.6.2.tar.gz", hash = "sha256:401b3b4613acceb392f7b80f03ddaf0346a15f1cfe8c1e05702ff233a0dde26e"},
 ]
 
 [package.dependencies]
@@ -4057,14 +4057,14 @@ PyYAML = "*"
 
 [[package]]
 name = "zipp"
-version = "3.12.1"
+version = "3.13.0"
 description = "Backport of pathlib-compatible object wrapper for zip files"
 category = "main"
 optional = false
 python-versions = ">=3.7"
 files = [
-    {file = "zipp-3.12.1-py3-none-any.whl", hash = "sha256:6c4fe274b8f85ec73c37a8e4e3fa00df9fb9335da96fb789e3b96b318e5097b3"},
-    {file = "zipp-3.12.1.tar.gz", hash = "sha256:a3cac813d40993596b39ea9e93a18e8a2076d5c378b8bc88ec32ab264e04ad02"},
+    {file = "zipp-3.13.0-py3-none-any.whl", hash = "sha256:e8b2a36ea17df80ffe9e2c4fda3f693c3dad6df1697d3cd3af232db680950b0b"},
+    {file = "zipp-3.13.0.tar.gz", hash = "sha256:23f70e964bc11a34cef175bc90ba2914e1e4545ea1e3e2f67c079671883f9cb6"},
 ]
 
 [package.extras]

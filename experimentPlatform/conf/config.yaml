@@ -1,8 +1,8 @@
 defaults:
   - aquisitionFunction: expectedImprovement
   - surrogateFunction: SingleTaskGP
-  - benchmark: hartmann6
-  - experimentConfig: s5b15sF
+  - benchmark: Hartmann6
+  - experimentConfig: s5b15eFsF
   - _self_
 
 hydra:
@@ -11,4 +11,4 @@ hydra:
       aquisitionFunction: glob(*)
       surrogateFunction: glob(*)
       benchmark: glob(*)
-      experimentConfig: s5b15sF
+      experimentConfig: s5b15eFsF

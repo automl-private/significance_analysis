@@ -1,22 +1,21 @@
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 import hydra
 from experimentPlatform import runExperiment
 
 @hydra.main(version_base=None, config_path="conf", config_name="config")
 def my_app(cfg: DictConfig) -> None:
-    #print(OmegaConf.to_yaml(cfg))
-    #print(cfg["aquisitionFunction"]["aquisitionFunction"])
     configDict={
-        "sobolRounds":cfg["experimentConfig"]["sobolRounds"],
-        "botorchRounds":cfg["trainingRounds"]["botorchRounds"],
+        "sobolRounds":cfg["experimentConfig"]["sobolRounds"], 
+        "botorchRounds":cfg["experimentConfig"]["botorchRounds"],
         "benchmark":cfg["benchmark"]["benchmark"],
         "randomSeed":"0",
         "aquisitionFunction":cfg["aquisitionFunction"]["aquisitionFunction"],
         "surrogateFunction":cfg["surrogateFunction"]["surrogateFunction"],
+        "executeTraining":cfg["experimentConfig"]["executeTraining"],
         "saveResults":cfg["experimentConfig"]["saveResults"]
     }
+    print(configDict)
     runExperiment(configDict)
-    return 0
 
 if __name__ == "__main__":
     my_app()

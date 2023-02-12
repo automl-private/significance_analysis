@@ -1,5 +1,6 @@
 #from hpobench.benchmarks.ml.nn_benchmark import NNBenchmark
 import os
+import numpy
 import jahs_bench
 import pandas as pd
 from ax import (
@@ -39,6 +40,7 @@ def runExperiment(hydraConfig:dict):
     chosenRandomSeed = int(hydraConfig["randomSeed"])
     chosenAqu = hydraConfig["aquisitionFunction"]
     chosenSurr = hydraConfig["surrogateFunction"]
+    executeTraining = bool(hydraConfig["executeTraining"])
     saveResults = bool(hydraConfig["saveResults"])
 
     #Chosing Aquisition and Surrogate Function
@@ -137,6 +139,11 @@ def runExperiment(hydraConfig:dict):
             RangeParameter("epoch", ParameterType.INT, 1, 200),
             FixedParameter("Optimizer", ParameterType.STRING, "SGD"),
         ]
+    else:
+        try:
+            raise KeyboardInterrupt
+        finally:
+            print("No valid benchmark")
 
     #HPO_Bench_NN_Integration: (uncomment Import to work + create Hydra-File. Problem: getuid()-Command used in PIP/Poetry-Import only works on Linux)
     '''
@@ -170,6 +177,7 @@ def runExperiment(hydraConfig:dict):
             RangeParameter("width",ParameterType.INT,16,1024,True)
         ]
     '''
+    
 
     #Creating MockRunner-Class
     class MockRunner(Runner):
@@ -181,8 +189,7 @@ def runExperiment(hydraConfig:dict):
     exp = Experiment(
         name="experiment " + chosenAqu+" "+chosenSurr,
         search_space=SearchSpace(parameters=parameterlist),
-        optimization_config=OptimizationConfig(
-            objective=Objective(
+        optimization_config=OptimizationConfig(objective=Objective(
                 metric=metric,
                 minimize=True,
             ),
@@ -190,49 +197,49 @@ def runExperiment(hydraConfig:dict):
         runner=MockRunner()
     )
 
+    if executeTraining:
+        #Sobol-Trainingrounds
+        sobol = Models.SOBOL(exp.search_space)
+        for i in range(numberOfSobolRounds):
+            trial = exp.new_trial(generator_run=sobol.gen(1))
+            trial.run()
+            trial.mark_completed()
 
-    #Sobol-Trainingrounds
-    sobol = Models.SOBOL(exp.search_space)
-    for i in range(numberOfSobolRounds):
-        trial = exp.new_trial(generator_run=sobol.gen(1))
-        trial.run()
-        trial.mark_completed()
+        #Botorch-Traningrounds
+        for i in range(numberOfBotorchRounds):
+            model_bridge_with_GPEI = Models.BOTORCH_MODULAR(
+                experiment=exp,
+                data=exp.fetch_data(),
+                surrogate=Surrogate(surrogateFunctions[chosenSurr]),
+                botorch_acqf_class=aquisitonFunctions[chosenAqu]
+            )
+            generator_run = model_bridge_with_GPEI.gen(1)
+            #best_arm, _ = generator_run.best_arm_predictions
+            trial = exp.new_trial(generator_run=generator_run)
+            trial.run()
+            trial.mark_completed()
 
-    #Botorch-Traningrounds
-    for i in range(numberOfBotorchRounds):
-        model_bridge_with_GPEI = Models.BOTORCH_MODULAR(
-            experiment=exp,
-            data=exp.fetch_data(),
-            surrogate=Surrogate(surrogateFunctions[chosenSurr]),
-            botorch_acqf_class=aquisitonFunctions[chosenAqu]
-        )
-        generator_run = model_bridge_with_GPEI.gen(1)
-        #best_arm, _ = generator_run.best_arm_predictions
-        trial = exp.new_trial(generator_run=generator_run)
-        trial.run()
-        trial.mark_completed()
+        #Data processing
+        df = exp.fetch_data().df
+        df.insert(0, "surrogate+aquistion", str(chosenSurr+"+"+chosenAqu))
+        df.insert(0, "benchmark", str(chosenBenchmark))
+        df.insert(0, "seed", str(chosenRandomSeed))
+        df = df.drop("arm_name", axis="columns")
+        df = df.rename(columns={"trial_index": "budget"})
+        print(df)
 
-    #Data processing
-    df = exp.fetch_data().df
-    df.insert(0, "surrogate+aquistion", str(chosenSurr+"+"+chosenAqu))
-    df.insert(0, "benchmark", str(chosenBenchmark))
-    df.insert(0, "seed", str(chosenRandomSeed))
-    df = df.drop("arm_name", axis="columns")
-    df = df.rename(columns={"trial_index": "budget"})
-    print(df)
-
-    #Data saving    
-    if saveResults:
-        os.makedirs("./results", exist_ok=True)
-        df.to_pickle(
-            "./results/b"
-            + str(chosenBenchmark)
-            + "a"
-            + str(chosenAqu)
-            + "s"
-            + str(chosenSurr)
-            + ".pkl"
-        )
+        #Data saving    
+        if saveResults:
+            os.makedirs("./results", exist_ok=True)
+            df.to_pickle(
+                "./results/b"
+                + str(chosenBenchmark)
+                + "a"
+                + str(chosenAqu)
+                + "s"
+                + str(chosenSurr)
+                + ".pkl"
+            )
 
     print("finished")
 
@@ -244,6 +251,7 @@ if __name__ == "__main__":
         "randomSeed":"0",
         "aquisitionFunction":"ExpectedImprovement",
         "surrogateFunction":"SingleTaskGP",
-        "saveResults":"True"
+        "executeTraining":"False",
+        "saveResults":"False"
     }
     runExperiment(testdict)

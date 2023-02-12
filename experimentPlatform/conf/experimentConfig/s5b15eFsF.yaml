@@ -1,0 +1,4 @@
+sobolRounds: 5
+botorchRounds: 15
+executeTraining: False
+saveResults: False
