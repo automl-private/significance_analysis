@@ -86,7 +86,7 @@ elif chosenBenchmark == 2:
                         "arm_name": arm_name,
                         "metric_name": self.name,
                         "trial_index": trial.index,
-                        "mean": -results[nepochs]["valid-acc"],
+                        "mean": 100-results[nepochs]["valid-acc"],
                         "sem": 0.0,
                     }
                 )
