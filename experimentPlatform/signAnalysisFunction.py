@@ -1,25 +1,9 @@
+import os
+
 import numpy as np
 import pandas as pd
 import scipy.stats as stats
 from pymer4.models import Lmer
-import os
-
-dfList = []
-filesList=os.listdir("./experimentPlatform/Results")
-print(filesList)
-for file in filesList:
-    dfList.append(pd.read_pickle(file))
-data = pd.concat(dfList)
-#data = pd.read_pickle("./experimentPlatform/concatData.pkl")
-metric = "mean"
-system_id = "algorithm"
-input_id = "benchmark"
-bin_id = "budget"
-bin_labels = ["short", "mediums", "mediuml", "long"]
-bin_dividers = [0.3, 0.5, 0.6, 1]
-
-
-
 
 
 def checkSignificance(
@@ -47,10 +31,7 @@ def checkSignificance(
             bin_dividers.append(1)
         bin_dividers.sort()
         if len(bin_labels) != (len(bin_dividers) - 1):
-            try:
-                raise KeyboardInterrupt
-            finally:
-                print("Dividiers do not fit divider-labels")
+            raise SystemExit("Dividiers do not fit divider-labels")
 
     # System-identifier: system_id
     # Input-Identifier: input_id
@@ -146,4 +127,19 @@ def checkSignificance(
     return result_GLRT_dM_cM, post_hoc_results, result_GLRT_ex_ni, post_hoc_results2
 
 
-checkSignificance(data, metric, system_id, input_id, bin_id, bin_labels, bin_dividers)
+if __name__ == "__main__":
+    dfList = []
+    filesList = os.listdir("./experimentPlatform/results")
+    print(filesList)
+    for file in filesList:
+        dfList.append(pd.read_pickle("./experimentPlatform/results/" + file))
+    data = pd.concat(dfList)
+    print(data)
+    # data = pd.read_pickle("./experimentPlatform/concatData.pkl")
+    metric = "mean"
+    system_id = "surrogate_aquisition"
+    input_id = "benchmark"
+    bin_id = "budget"
+    bin_labels = ["short", "long"]
+    bin_dividers = [0.4, 1]
+    checkSignificance(data, metric, system_id, input_id, bin_id, bin_labels, bin_dividers)

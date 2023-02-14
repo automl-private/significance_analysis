@@ -1,0 +1,4 @@
+sobolRounds: 2
+botorchRounds: 2
+executeTraining: True
+saveResults: True

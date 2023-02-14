@@ -158,10 +158,7 @@ def runExperiment(hydraConfig: dict):
             FixedParameter("Optimizer", ParameterType.STRING, "SGD"),
         ]
     else:
-        try:
-            raise KeyboardInterrupt
-        finally:
-            print("No valid benchmark")
+        raise SystemExit("No valid benchmark")
 
     # HPO_Bench_NN_Integration: (uncomment Import to work + create Hydra-File. Problem: getuid()-Command used in PIP/Poetry-Import only works on Linux)
     """
@@ -239,7 +236,7 @@ def runExperiment(hydraConfig: dict):
 
         # Data processing
         df = exp.fetch_data().df
-        df.insert(0, "surrogate+aquistion", str(chosenSurr + "+" + chosenAqu))
+        df.insert(0, "surrogate_aquisition", str(chosenSurr + "_" + chosenAqu))
         df.insert(0, "benchmark", str(chosenBenchmark))
         df.insert(0, "seed", str(chosenRandomSeed))
         df = df.drop("arm_name", axis="columns")
@@ -248,14 +245,16 @@ def runExperiment(hydraConfig: dict):
 
         # Data saving
         if saveResults:
-            os.makedirs("./results", exist_ok=True)
+            os.makedirs("./experimentPlatform/results", exist_ok=True)
             df.to_pickle(
-                "./results/b"
+                "./experimentPlatform/results/ben_"
                 + str(chosenBenchmark)
-                + "a"
+                + "_aqu_"
                 + str(chosenAqu)
-                + "s"
+                + "_surr_"
                 + str(chosenSurr)
+                + "_seed_"
+                + str(chosenRandomSeed)
                 + ".pkl"
             )
 
@@ -264,13 +263,13 @@ def runExperiment(hydraConfig: dict):
 
 if __name__ == "__main__":
     testdict = {
-        "sobolRounds": "5",
-        "botorchRounds": "15",
+        "sobolRounds": "2",
+        "botorchRounds": "2",
         "benchmark": "Branin",
         "randomSeed": "0",
         "aquisitionFunction": "ExpectedImprovement",
         "surrogateFunction": "SingleTaskGP",
-        "executeTraining": "False",
-        "saveResults": "False",
+        "executeTraining": "True",
+        "saveResults": "True",
     }
     runExperiment(testdict)

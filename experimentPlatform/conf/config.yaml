@@ -11,4 +11,4 @@ hydra:
       aquisitionFunction: glob(*)
       surrogateFunction: glob(*)
       benchmark: glob(*)
-      experimentConfig: s5b15eFsF
+      experimentConfig: s2b2eTsT
