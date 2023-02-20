@@ -21,12 +21,22 @@ from ax.metrics.hartmann6 import Hartmann6Metric
 from ax.modelbridge.registry import Models
 from ax.models.torch.botorch_modular.surrogate import Surrogate
 from ax.utils.common.result import Ok
-from botorch.acquisition.analytic import ExpectedImprovement
-from botorch.acquisition.monte_carlo import (
-    qExpectedImprovement,
-    qNoisyExpectedImprovement,
+from botorch.acquisition.analytic import (
+    ExpectedImprovement,
+    ProbabilityOfImprovement,
+    UpperConfidenceBound,
 )
-from botorch.models.gp_regression import FixedNoiseGP, SingleTaskGP
+from botorch.acquisition.monte_carlo import (  # qNoisyExpectedImprovement,
+    qExpectedImprovement,
+    qProbabilityOfImprovement,
+    qUpperConfidenceBound,
+)
+from botorch.models.gp_regression import (
+    FixedNoiseGP,
+    HeteroskedasticSingleTaskGP,
+    SingleTaskGP,
+)
+from botorch.models.gp_regression_mixed import MixedSingleTaskGP
 
 
 def runExperiment(hydraConfig: dict):
@@ -43,10 +53,19 @@ def runExperiment(hydraConfig: dict):
     # Chosing Aquisition and Surrogate Function
     aquisitonFunctions = {
         "qExpectedImprovement": qExpectedImprovement,
-        "qNoisyExpectedImprovement": qNoisyExpectedImprovement,
+        # "qNoisyExpectedImprovement": qNoisyExpectedImprovement,
         "ExpectedImprovement": ExpectedImprovement,
+        "UpperConfidenceBound": UpperConfidenceBound,
+        "ProbabilityOfImprovement": ProbabilityOfImprovement,
+        "qProbabilityOfImprovement": qProbabilityOfImprovement,
+        "qUpperConfidenceBound": qUpperConfidenceBound,
     }
-    surrogateFunctions = {"FixedNoiseGP": FixedNoiseGP, "SingleTaskGP": SingleTaskGP}
+    surrogateFunctions = {
+        "FixedNoiseGP": FixedNoiseGP,
+        "SingleTaskGP": SingleTaskGP,
+        "MixedSingleTaskGP": MixedSingleTaskGP,
+        "HeteroskedasticSingleTaskGP": HeteroskedasticSingleTaskGP,
+    }
 
     # Chosing and initialising Benchmark
     if chosenBenchmark == "Branin":
@@ -103,6 +122,26 @@ def runExperiment(hydraConfig: dict):
                         }
                     )
                 return Ok(value=Data(df=pd.DataFrame.from_records(records)))
+
+            """
+            def keys(self):
+                return [
+                    "Op1",
+                    "Op2",
+                    "Op3",
+                    "Op4",
+                    "Op5",
+                    "Op6",
+                    "Activation",
+                    "LearningRate",
+                    "WeightDecay",
+                    "TrivialAugment",
+                    "N",
+                    "W",
+                    "Resolution",
+                    "epoch",
+                    "Optimizer",
+                ]"""
 
         metric = JAHSMetric("JAHS")
 

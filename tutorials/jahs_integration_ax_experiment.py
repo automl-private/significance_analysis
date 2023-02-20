@@ -14,7 +14,23 @@ from ax import (
     SearchSpace,
 )
 from ax.modelbridge.registry import Models
+from ax.models.torch.botorch_modular.surrogate import Surrogate
 from ax.utils.common.result import Ok
+from botorch.acquisition.analytic import (  # ProbabilityOfImprovement,; UpperConfidenceBound,
+    ExpectedImprovement,
+)
+
+# from botorch.acquisition.monte_carlo import (  # qNoisyExpectedImprovement,
+# qExpectedImprovement,
+# qProbabilityOfImprovement,
+# qUpperConfidenceBound,
+# )
+# from botorch.models.gp_regression import (
+# FixedNoiseGP,
+# HeteroskedasticSingleTaskGP,
+# SingleTaskGP,
+# )
+from botorch.models.gp_regression_mixed import MixedSingleTaskGP
 
 jahs_benchmark = jahs_bench.Benchmark(task="cifar10")
 
@@ -26,7 +42,7 @@ parameterlist = [
         "Activation",
         ParameterType.STRING,
         ["ReLU", "Hardswish", "Mish"],
-        False,
+        is_ordered=False,
         sort_values=False,
     ),
     RangeParameter("LearningRate", ParameterType.FLOAT, 0, 1e-3),
@@ -70,11 +86,33 @@ class JAHS_BENCH_Metric(Metric):
                     "arm_name": arm_name,
                     "metric_name": self.name,
                     "trial_index": trial.index,
-                    "mean": 100-results[nepochs]["valid-acc"],
+                    "mean": 100 - results[nepochs]["valid-acc"],
                     "sem": 0,
                 }
             )
         return Ok(value=Data(df=pd.DataFrame.from_records(records)))
+
+
+"""
+    def keys(self):
+        return [
+            "Op1",
+            "Op2",
+            "Op3",
+            "Op4",
+            "Op5",
+            "Op6",
+            "Activation",
+            "LearningRate",
+            "WeightDecay",
+            "TrivialAugment",
+            "N",
+            "W",
+            "Resolution",
+            "epoch",
+            "Optimizer",
+        ]
+"""
 
 
 class MockRunner(Runner):
@@ -96,8 +134,24 @@ exp = Experiment(
 )
 
 sobol = Models.SOBOL(exp.search_space)
-for i in range(2):
+for i in range(1):
     trial = exp.new_trial(generator_run=sobol.gen(1))
+    trial.run()
+    trial.mark_completed()
+
+# Botorch-Traningrounds
+for _ in range(2):
+    model_bridge_with_GPEI = Models.BOTORCH_MODULAR(
+        experiment=exp,
+        data=exp.fetch_data(),
+        surrogate=Surrogate(
+            MixedSingleTaskGP, model_options={"categorical_features": [0, 3, 4]}
+        ),
+        botorch_acqf_class=ExpectedImprovement,
+    )
+    generator_run = model_bridge_with_GPEI.gen(1)
+    # best_arm, _ = generator_run.best_arm_predictions
+    trial = exp.new_trial(generator_run=generator_run)
     trial.run()
     trial.mark_completed()
 

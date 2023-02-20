@@ -1,14 +1,14 @@
 defaults:
-  - aquisitionFunction: expectedImprovement
-  - surrogateFunction: SingleTaskGP
-  - benchmark: Hartmann6
-  - experimentConfig: s5b15eFsF
+  - aquisitionFunction: UpperConfidenceBound
+  - surrogateFunction: HeteroskedasticSingleTaskGP
+  - benchmark: branin
+  - experimentConfig: s2b2eTsF
   - _self_
 
 hydra:
   sweeper:
     params:
       aquisitionFunction: glob(*)
-      surrogateFunction: glob(*)
+      surrogateFunction: HeteroskedasticSingleTaskGP
       benchmark: glob(*)
-      experimentConfig: s2b2eTsT
+      experimentConfig: s2b2eTsF
