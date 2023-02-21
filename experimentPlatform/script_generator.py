@@ -4,7 +4,7 @@ arraySize = 4
 partition = "testdlc_gpu-rtx2080"
 memory = 4000
 scriptIndex = len(os.listdir("./experimentPlatform/clusterScripts"))
-foldername = "testjob1"
+foldername = "testjob" + str(scriptIndex)
 
 # Create the Bash script
 # Prepare Experiment
