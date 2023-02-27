@@ -1,6 +1,6 @@
 import pandas as pd
 
-from sign_analysis_example.src.signAnalysisFunction import checkSignificance
+from significance_analysis.src.signAnalysisFunction import checkSignificance
 
 if __name__ == "__main__":
     data = pd.read_pickle("./exampleDataset.pkl")
