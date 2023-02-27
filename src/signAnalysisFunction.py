@@ -178,6 +178,7 @@ def checkSignificance(
         return result_GLRT_dM_cM, post_hoc_results, result_GLRT_ex_ni, post_hoc_results2
 
 
+###TODO: Edit Main!
 if __name__ == "__main__":
     dfList = []
     filesList = os.listdir("./experimentPlatform/results")
