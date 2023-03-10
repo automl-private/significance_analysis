@@ -1,4 +1,4 @@
-import os
+# import os
 import typing
 
 import numpy as np
@@ -180,13 +180,13 @@ def checkSignificance(
 
 ###TODO: Edit Main!
 if __name__ == "__main__":
-    dfList = []
-    filesList = os.listdir("./experimentPlatform/results")
-    for file in filesList:
-        dfList.append(pd.read_pickle("./experimentPlatform/results/" + file))
-    data = pd.concat(dfList)
+    # dfList = []
+    # filesList = os.listdir("./experimentPlatform/results")
+    # for file in filesList:
+    #    dfList.append(pd.read_pickle("./experimentPlatform/results/" + file))
+    # data = pd.concat(dfList)
+    data = pd.read_pickle("./sign_analysis_example/exampleDataset.pkl")
     print(data)
-    # data = pd.read_pickle("./experimentPlatform/concatData.pkl")
     metric = "mean"
     system_id = "surrogate_aquisition"
     input_id = "benchmark"
