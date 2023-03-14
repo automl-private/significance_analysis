@@ -1,13 +1,15 @@
 import pandas as pd
 
-from src.significance_analysis.significance_analysis_function import checkSignificance
+from significance_analysis import significance_analysis_function
 
 if __name__ == "__main__":
-    data = pd.read_pickle("./exampleDataset.pkl")
+    data = pd.read_pickle("sign_analysis_example/example_dataset.pkl")
     metric = "mean"
-    system_id = "surrogate_aquisition"
+    system_id = "algorithm"
     input_id = "benchmark"
     bin_id = "budget"
     bin_labels = ["short", "long"]
     bin_dividers = [0.4, 1]
-    checkSignificance(data, metric, system_id, input_id, bin_id, bin_labels, bin_dividers)
+    significance_analysis_function.checkSignificance(
+        data, metric, system_id, input_id, bin_id, bin_labels, bin_dividers
+    )

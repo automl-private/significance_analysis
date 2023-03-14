@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "significance_analysis"
-version = "v0.1.0"
+version = "v0.1.2"
 description = "Significance Analysis for HPO-algorithms performing on multiple benchmarks"
 authors = ["Anton Merlin Geburek <gebureka@cs.uni-freiburg.de>",
 "Danny Stoll <stolld@cs.uni-freiburg.de>"]
@@ -10,16 +10,19 @@ keywords = ["Hyperparameter Optimization", "AutoML"]
 classifiers = [
   "Intended Audience :: Science/Research",
   "Natural Language :: English",
-  "Operating System :: Windows",
+  "Operating System :: Microsoft :: Windows",
   "Programming Language :: Python :: 3.8",
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 
+packages = [
+    { include = "significance_analysis", from = "src" },
+]
 
 [tool.poetry.dependencies]
-python = ">=3.8,<=3.11"
+python = ">=3.8,<3.11"
 pymer4 = "^0.8.0"
 
 [tool.poetry.group.dev.dependencies]

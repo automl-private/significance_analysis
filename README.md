@@ -1,8 +1,8 @@
 # Significance Analysis
 
-[![PyPI version](https://img.shields.io/pypi/v/neural-pipeline-search?color=informational)](https://pypi.org/project/neural-pipeline-search/)
-[![Python versions](https://img.shields.io/pypi/pyversions/neural-pipeline-search)](https://pypi.org/project/neural-pipeline-search/)
-[![License](https://img.shields.io/pypi/l/neural-pipeline-search?color=informational)](LICENSE)
+[![PyPI version](https://img.shields.io/pypi/v/significance-analysis?color=informational)](https://pypi.org/project/significance-analysis/)
+[![Python versions](https://img.shields.io/pypi/pyversions/significance-analysis)](https://pypi.org/project/significance-analysis/)
+[![License](https://img.shields.io/pypi/l/significance-analysis?color=informational)](LICENSE)
 
 This package is used to analyse datasets of different HPO-algorithms performing on multiple benchmarks.
 
@@ -12,7 +12,7 @@ As indicated with the `v0.x.x` version number, Significance Analysis is early st
 
 ## Documentation
 
-Please have a look at our [example](sign_analysis_example).
+Please have a look at our [example](sign_analysis_example/example_analysis.py).
 The dataset should have the following format:
 
 | system_id<br>(algorithm name) | input_id<br>(benchmark name) | metric<br>(mean/estimate) | optional: bin_id<br>(budget/traininground) |
@@ -31,7 +31,7 @@ Optionally the dataset can be binned according to a fourth variable (bin_id) and
 Using pip
 
 ```bash
-pip install $$$
+pip install significance-analysis
 ```
 
 Using R, >=4.0.0
@@ -39,7 +39,7 @@ install packages: Matrix, emmeans, lmerTest
 
 ## Usage
 
-1. Generate data from HPO-algorithms on benchmarks, saving data according to our format (Missing link: https://automl.github.io/)
+1. Generate data from HPO-algorithms on benchmarks, saving data according to our format.
 1. Call function `checkSignificance` on dataset, while specifying variable-names
 
 In code, the usage pattern can look like this:
@@ -54,4 +54,4 @@ data = pd.read_pickle("./exampleDataset.pkl")
 checkSignificance(data, "mean", "surrogate_aquisition", "benchark")
 ```
 
-For more details and features please have a look at our documentation (Missing link: https://automl.github.io/) and [example](sign_analysis_example).
+For more details and features please have a look at our [example](sign_analysis_example/example_analysis.py).
