@@ -1,9 +1,11 @@
 # import os
 import typing
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import scipy.stats as stats
+import seaborn as sns
 from pymer4.models import Lmer
 
 
@@ -78,6 +80,12 @@ def checkSignificance(
             bin_dividers.sort()
             if len(bin_labels) != (len(bin_dividers) - 1):
                 raise SystemExit("Dividiers do not fit divider-labels")
+
+        sns.set(style="darkgrid")
+
+        g = sns.FacetGrid(data, col="algorithm", col_wrap=3, height=4)
+        g.map(sns.regplot, "budget", "mean", lowess=True, scatter_kws={"s": 10})
+        plt.show()
 
         # System-identifier: system_id
         # Input-Identifier: input_id
@@ -169,6 +177,27 @@ def checkSignificance(
         post_hoc_results2 = model_expanded.post_hoc(
             marginal_vars=system_id, grouping_vars="bin_class"
         )
+
+        sns.catplot(
+            x="bin_class",
+            y="Estimate",
+            hue="algorithm",
+            kind="point",
+            data=post_hoc_results2[0],
+            capsize=0.1,
+            errorbar=("ci", 80),
+            height=6,
+            aspect=1.5,
+        )
+
+        # Set the axis labels and title
+        plt.xlabel("Bin Class")
+        plt.ylabel("Estimated Mean")
+        plt.title("Interaction Plot of Estimated Means")
+
+        # Show the plot
+        plt.show()
+
         # Means of each combination
         print(post_hoc_results2[0])
         # Comparisons for each combination
@@ -185,10 +214,10 @@ if __name__ == "__main__":
     # for file in filesList:
     #    dfList.append(pd.read_pickle("./experimentPlatform/results/" + file))
     # data = pd.concat(dfList)
-    data = pd.read_pickle("./sign_analysis_example/exampleDataset.pkl")
+    data = pd.read_pickle("./sign_analysis_example/example_dataset.pkl")
     print(data)
     metric = "mean"
-    system_id = "surrogate_aquisition"
+    system_id = "algorithm"
     input_id = "benchmark"
     bin_id = "budget"
     bin_labels = ["short", "long"]
