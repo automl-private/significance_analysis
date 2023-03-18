@@ -1,4 +1,4 @@
-# import os
+import os
 import typing
 
 import matplotlib.pyplot as plt
@@ -83,8 +83,8 @@ def checkSignificance(
 
         sns.set(style="darkgrid")
 
-        g = sns.FacetGrid(data, col="algorithm", col_wrap=3, height=4)
-        g.map(sns.regplot, "budget", "mean", lowess=True, scatter_kws={"s": 10})
+        g = sns.FacetGrid(data, col=system_id, col_wrap=3, height=4)
+        g.map(sns.regplot, bin_id, metric, lowess=True, scatter_kws={"s": 10})
         plt.show()
 
         # System-identifier: system_id
@@ -181,7 +181,7 @@ def checkSignificance(
         sns.catplot(
             x="bin_class",
             y="Estimate",
-            hue="algorithm",
+            hue=system_id,
             kind="point",
             data=post_hoc_results2[0],
             capsize=0.1,
@@ -209,18 +209,19 @@ def checkSignificance(
 
 ###TODO: Edit Main!
 if __name__ == "__main__":
-    # dfList = []
-    # filesList = os.listdir("./experimentPlatform/results")
-    # for file in filesList:
-    #    dfList.append(pd.read_pickle("./experimentPlatform/results/" + file))
-    # data = pd.concat(dfList)
-    data = pd.read_pickle("./sign_analysis_example/example_dataset.pkl")
+    dfList = []
+    filesList = os.listdir("./dataset")
+    for file in filesList:
+        dfList.append(pd.read_pickle("./dataset/" + file))
+    data = pd.concat(dfList)
+    data = data.reset_index()
+    # data = pd.read_pickle("./sign_analysis_example/example_dataset.pkl")
     print(data)
     metric = "mean"
-    system_id = "algorithm"
+    system_id = "surrogate_aquisition"
     input_id = "benchmark"
     bin_id = "budget"
-    bin_labels = ["short", "long"]
-    bin_dividers = [0.4, 1]
+    bin_labels = ["20%", "40%", "60%", "80%", "100%"]
+    bin_dividers = [0.2, 0.4, 0.6, 0.8, 1]
     checkSignificance(data, metric, system_id, input_id, bin_id, bin_labels, bin_dividers)
     print("Done")
