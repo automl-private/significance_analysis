@@ -8,6 +8,11 @@ import scipy.stats as stats
 import seaborn as sns
 from pymer4.models import Lmer
 
+# import matplotlib.backends.backend_tkagg as tkagg
+# from matplotlib.backends.backend_agg import FigureCanvasAgg
+# from matplotlib.figure import Figure
+# import tkinter as tk
+
 
 def checkSignificance(
     data: pd.DataFrame,
@@ -17,51 +22,63 @@ def checkSignificance(
     bin_id: str = None,
     bin_labels: list[str] = None,
     bin_dividers: list[float] = None,
-    specificBenchmark: typing.Union[str, list[str]] = None,
+    subset: typing.Tuple[str, typing.Union[str, list[str]]] = None,
+    show_plots: typing.Union[list[bool], bool] = True,
 ):
-    if specificBenchmark is not None and isinstance(specificBenchmark, str):
-        if specificBenchmark == "all" or specificBenchmark == "a":
-            for benchmark in list(data[input_id].unique()):
+    if subset is not None and isinstance(subset[1], str):
+        if subset[1] == "all" or subset[1] == "a":
+            for subset_item in list(data[subset[0]].unique()):
                 checkSignificance(
-                    data.loc[data[input_id] == benchmark],
+                    data.loc[data[subset[0]] == subset_item],
                     metric,
                     system_id,
                     input_id,
                     bin_id,
                     bin_labels,
                     bin_dividers,
+                    show_plots=show_plots,
                 )
-        elif specificBenchmark in data[input_id].unique():
+        elif subset[1] in data[subset[0]].unique():
             checkSignificance(
-                data.loc[data[input_id] == specificBenchmark],
+                data.loc[data[subset[0]] == subset[1]],
                 metric,
                 system_id,
                 input_id,
                 bin_id,
                 bin_labels,
                 bin_dividers,
+                show_plots=show_plots,
             )
         else:
             raise SystemExit(
                 'Benchmark-Name not in Dataset. Use "all" or "a" to analyse all benchmarks individually or use valid benchmark name/list of valid benchmark names.'
             )
-    elif specificBenchmark is not None and isinstance(specificBenchmark, list):
-        if isinstance(specificBenchmark[0], str):
-            for benchmark in specificBenchmark:
-                if benchmark not in data[input_id].unique():
-                    raise SystemExit("Benchmark-Name not in Dataset.")
+    elif subset is not None and isinstance(subset[1], list):
+        print(subset)
+        print(type(subset))
+        print(subset[1])
+        if isinstance(subset[1], str):
+            for subset_item in subset[1]:
+                if subset_item not in data[subset[0]].unique():
+                    raise SystemExit("Subset-Name not in Dataset.")
                 checkSignificance(
-                    data.loc[data[input_id] == benchmark],
+                    data.loc[data[subset[0]] == subset_item],
                     metric,
                     system_id,
                     input_id,
                     bin_id,
                     bin_labels,
                     bin_dividers,
+                    show_plots=show_plots,
                 )
         else:
-            raise SystemExit("Benchmarks need to be list of strings.")
+            raise SystemExit("Subset need to be list of strings.")
     else:
+
+        pd.set_option("display.width", None)
+        pd.set_option("display.max_colwidth", None)
+        if isinstance(show_plots, bool):
+            show_plots = [show_plots, show_plots]
 
         def GLRT(mod1, mod2):
             chi_square = 2 * abs(mod1.logLike - mod2.logLike)
@@ -81,11 +98,61 @@ def checkSignificance(
             if len(bin_labels) != (len(bin_dividers) - 1):
                 raise SystemExit("Dividiers do not fit divider-labels")
 
+        """
         sns.set(style="darkgrid")
 
         g = sns.FacetGrid(data, col=system_id, col_wrap=3, height=4)
         g.map(sns.regplot, bin_id, metric, lowess=True, scatter_kws={"s": 10})
         plt.show()
+
+        """
+
+        if show_plots[0]:
+
+            sns.set(style="whitegrid")
+
+            # Get the unique system_id values and the number of unique system_id values
+            ids = data[system_id].unique()
+            # n_ids = len(ids)
+
+            # Loop over each unique system_id value and plot the estimated expected metric for each bin_id in a separate subplot
+            for _, sys_id in enumerate(ids):
+                _, ax = plt.subplots(figsize=(6, 6))
+                subset = data[data[system_id] == sys_id]
+                sns.regplot(
+                    x=bin_id,
+                    y=metric,
+                    data=subset,
+                    lowess=True,
+                    scatter_kws={"alpha": 0.3},
+                    ax=ax,
+                )
+                ax.set_xlabel(bin_id)
+                ax.set_ylabel("Estimated Expected Metric")
+                ax.set_title(
+                    f"Dependency of Estimated Expected Metric on Bin ID for System ID {sys_id}"
+                )
+
+                # Display the current subplot and wait for user input to continue to the next one
+                while True:
+                    plt.show(block=False)
+                    plt.pause(0.1)
+                    toolbar = plt.get_current_fig_manager().toolbar
+                    if toolbar:
+                        toolbar.update()
+                    else:
+                        print(
+                            "Warning: Could not find toolbar, keyboard navigation may not work."
+                        )
+                    key = plt.waitforbuttonpress()
+                    if key:
+                        if plt.get_current_fig_manager().toolbar.mode == "zoom rect":
+                            plt.get_current_fig_manager().toolbar.zoom()
+                        elif plt.get_current_fig_manager().toolbar.mode == "pan/zoom":
+                            plt.get_current_fig_manager().toolbar.pan()
+                        elif plt.get_current_fig_manager().toolbar.mode == "":
+                            plt.close()  # Close the current subplot window
+                            break
 
         # System-identifier: system_id
         # Input-Identifier: input_id
@@ -94,6 +161,7 @@ def checkSignificance(
         differentMeans_model = Lmer(
             formula=metric + " ~ " + system_id + " + (1 | " + input_id + ")", data=data
         )
+        print(data)
         # factors specifies names of system_identifier, i.e. Baseline, or Algorithm1
         differentMeans_model.fit(
             factors={system_id: list(data[system_id].unique())},
@@ -178,31 +246,54 @@ def checkSignificance(
             marginal_vars=system_id, grouping_vars="bin_class"
         )
 
-        sns.catplot(
-            x="bin_class",
-            y="Estimate",
-            hue=system_id,
-            kind="point",
-            data=post_hoc_results2[0],
-            capsize=0.1,
-            errorbar=("ci", 80),
-            height=6,
-            aspect=1.5,
-        )
+        if show_plots[1]:
 
-        # Set the axis labels and title
-        plt.xlabel("Bin Class")
-        plt.ylabel("Estimated Mean")
-        plt.title("Interaction Plot of Estimated Means")
+            sns.catplot(
+                x="bin_class",
+                y="Estimate",
+                hue=system_id,
+                kind="point",
+                data=post_hoc_results2[0],
+                capsize=0.1,
+                errorbar=("ci", 80),
+                height=6,
+                aspect=1.5,
+            )
 
-        # Show the plot
-        plt.show()
+            # Set the axis labels and title
+            plt.xlabel("Bin Class")
+            plt.ylabel("Estimated Mean")
+            plt.title("Interaction Plot of Estimated Means")
+
+            # Show the plot
+            plt.show()
 
         # Means of each combination
         print(post_hoc_results2[0])
         # Comparisons for each combination
         for bin_class in bin_labels:
-            print(post_hoc_results2[1].query("bin_class == '" + bin_class + "'"))
+            print(
+                post_hoc_results2[1].query("bin_class == '" + bin_class + "'")[
+                    (
+                        post_hoc_results2[1].query("bin_class == '" + bin_class + "'")[
+                            "Sig"
+                        ]
+                        == "***"
+                    )
+                    | (
+                        post_hoc_results2[1].query("bin_class == '" + bin_class + "'")[
+                            "Sig"
+                        ]
+                        == "**"
+                    )
+                    | (
+                        post_hoc_results2[1].query("bin_class == '" + bin_class + "'")[
+                            "Sig"
+                        ]
+                        == "*"
+                    )
+                ]
+            )
 
         return result_GLRT_dM_cM, post_hoc_results, result_GLRT_ex_ni, post_hoc_results2
 
@@ -212,16 +303,36 @@ if __name__ == "__main__":
     dfList = []
     filesList = os.listdir("./dataset")
     for file in filesList:
-        dfList.append(pd.read_pickle("./dataset/" + file))
+        df = pd.read_pickle("./dataset/" + file)
+        # print(df)
+        df["mean"] = df["mean"].cummin()
+        # print(df)
+        dfList.append(df)
     data = pd.concat(dfList)
     data = data.reset_index()
+    data = (
+        data.drop("n", axis=1)
+        .drop("frac_nonnull", axis=1)
+        .drop("metric_name", axis=1)
+        .drop("index", axis=1)
+    )
+    # data=data.drop('frac_nonnull#,errors='ignore')
     # data = pd.read_pickle("./sign_analysis_example/example_dataset.pkl")
-    print(data)
     metric = "mean"
     system_id = "surrogate_aquisition"
-    input_id = "benchmark"
+    input_id = "seed"
     bin_id = "budget"
-    bin_labels = ["20%", "40%", "60%", "80%", "100%"]
-    bin_dividers = [0.2, 0.4, 0.6, 0.8, 1]
-    checkSignificance(data, metric, system_id, input_id, bin_id, bin_labels, bin_dividers)
+    print(len(data[input_id].unique()))
+    bin_labels = ["0-16% (Sobol)", "16-37%", "37-58%", "58-79%", "79-100%"]
+    bin_dividers = [0.16, 0.37, 0.58, 0.79, 1]
+    checkSignificance(
+        data,
+        metric,
+        system_id,
+        input_id,
+        bin_id,
+        bin_labels,
+        bin_dividers,
+        show_plots=[False, True],
+    )
     print("Done")
