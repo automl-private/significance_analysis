@@ -77,6 +77,7 @@ def checkSignificance(
 
         pd.set_option("display.width", None)
         pd.set_option("display.max_colwidth", None)
+        pd.options.display.max_rows = 500
         if isinstance(show_plots, bool):
             show_plots = [show_plots, show_plots]
 
@@ -98,61 +99,21 @@ def checkSignificance(
             if len(bin_labels) != (len(bin_dividers) - 1):
                 raise SystemExit("Dividiers do not fit divider-labels")
 
-        """
-        sns.set(style="darkgrid")
-
-        g = sns.FacetGrid(data, col=system_id, col_wrap=3, height=4)
-        g.map(sns.regplot, bin_id, metric, lowess=True, scatter_kws={"s": 10})
-        plt.show()
-
-        """
-
         if show_plots[0]:
 
-            sns.set(style="whitegrid")
+            sns.set(style="darkgrid")
+            g = sns.FacetGrid(data, col=system_id, col_wrap=3, height=4)
+            g.map(
+                sns.regplot,
+                bin_id,
+                metric,
+                lowess=True,
+                scatter_kws={"s": 10, "alpha": 0.5},
+            )
+            # Generate contour lines for entire dataset
+            # sns.kdeplot(x=data[bin_id], y=data[metric], levels=5, alpha=0.5, ax=g.fig.gca())
 
-            # Get the unique system_id values and the number of unique system_id values
-            ids = data[system_id].unique()
-            # n_ids = len(ids)
-
-            # Loop over each unique system_id value and plot the estimated expected metric for each bin_id in a separate subplot
-            for _, sys_id in enumerate(ids):
-                _, ax = plt.subplots(figsize=(6, 6))
-                subset = data[data[system_id] == sys_id]
-                sns.regplot(
-                    x=bin_id,
-                    y=metric,
-                    data=subset,
-                    lowess=True,
-                    scatter_kws={"alpha": 0.3},
-                    ax=ax,
-                )
-                ax.set_xlabel(bin_id)
-                ax.set_ylabel("Estimated Expected Metric")
-                ax.set_title(
-                    f"Dependency of Estimated Expected Metric on Bin ID for System ID {sys_id}"
-                )
-
-                # Display the current subplot and wait for user input to continue to the next one
-                while True:
-                    plt.show(block=False)
-                    plt.pause(0.1)
-                    toolbar = plt.get_current_fig_manager().toolbar
-                    if toolbar:
-                        toolbar.update()
-                    else:
-                        print(
-                            "Warning: Could not find toolbar, keyboard navigation may not work."
-                        )
-                    key = plt.waitforbuttonpress()
-                    if key:
-                        if plt.get_current_fig_manager().toolbar.mode == "zoom rect":
-                            plt.get_current_fig_manager().toolbar.zoom()
-                        elif plt.get_current_fig_manager().toolbar.mode == "pan/zoom":
-                            plt.get_current_fig_manager().toolbar.pan()
-                        elif plt.get_current_fig_manager().toolbar.mode == "":
-                            plt.close()  # Close the current subplot window
-                            break
+            plt.show()
 
         # System-identifier: system_id
         # Input-Identifier: input_id
@@ -161,6 +122,7 @@ def checkSignificance(
         differentMeans_model = Lmer(
             formula=metric + " ~ " + system_id + " + (1 | " + input_id + ")", data=data
         )
+
         print(data)
         # factors specifies names of system_identifier, i.e. Baseline, or Algorithm1
         differentMeans_model.fit(
@@ -255,7 +217,7 @@ def checkSignificance(
                 kind="point",
                 data=post_hoc_results2[0],
                 capsize=0.1,
-                errorbar=("ci", 80),
+                errorbar="sd",
                 height=6,
                 aspect=1.5,
             )
@@ -301,13 +263,15 @@ def checkSignificance(
 ###TODO: Edit Main!
 if __name__ == "__main__":
     dfList = []
-    filesList = os.listdir("./dataset")
-    for file in filesList:
-        df = pd.read_pickle("./dataset/" + file)
-        # print(df)
-        df["mean"] = df["mean"].cummin()
-        # print(df)
-        dfList.append(df)
+    folders = ["./dataset_secondRun", "./dataset_qrun"]
+    for folder in folders:
+        filesList = os.listdir(folder)
+        for file in filesList:
+            df = pd.read_pickle(folder + "/" + file)
+            # print(df)
+            df["mean"] = df["mean"].cummin()
+            # print(df)
+            dfList.append(df)
     data = pd.concat(dfList)
     data = data.reset_index()
     data = (
@@ -316,13 +280,13 @@ if __name__ == "__main__":
         .drop("metric_name", axis=1)
         .drop("index", axis=1)
     )
+    # data=data.loc[data["budget"] <9]
     # data=data.drop('frac_nonnull#,errors='ignore')
     # data = pd.read_pickle("./sign_analysis_example/example_dataset.pkl")
     metric = "mean"
-    system_id = "surrogate_aquisition"
-    input_id = "seed"
+    system_id = "aquisition"
+    input_id = "benchmark"
     bin_id = "budget"
-    print(len(data[input_id].unique()))
     bin_labels = ["0-16% (Sobol)", "16-37%", "37-58%", "58-79%", "79-100%"]
     bin_dividers = [0.16, 0.37, 0.58, 0.79, 1]
     checkSignificance(
@@ -332,7 +296,9 @@ if __name__ == "__main__":
         input_id,
         bin_id,
         bin_labels,
+        # ["49","50"],
+        # [0.5],
         bin_dividers,
-        show_plots=[False, True],
+        show_plots=[True, True],
     )
     print("Done")
