@@ -1,6 +1,6 @@
 import pandas as pd
 
-from significance_analysis import significance_analysis_function
+from significance_analysis import checkSignificance
 
 if __name__ == "__main__":
     data = pd.read_pickle("sign_analysis_example/example_dataset.pkl")
@@ -10,6 +10,4 @@ if __name__ == "__main__":
     bin_id = "budget"
     bin_labels = ["short", "long"]
     bin_dividers = [0.4, 1]
-    significance_analysis_function.checkSignificance(
-        data, metric, system_id, input_id, bin_id, bin_labels, bin_dividers
-    )
+    checkSignificance(data, metric, system_id, input_id, bin_id, bin_labels, bin_dividers)
