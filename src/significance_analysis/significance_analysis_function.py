@@ -210,24 +210,31 @@ def checkSignificance(
 
         if show_plots[1]:
 
-            sns.catplot(
-                x="bin_class",
-                y="Estimate",
-                hue=system_id,
-                kind="point",
-                data=post_hoc_results2[0],
-                capsize=0.1,
-                errorbar="sd",
-                height=6,
-                aspect=1.5,
-            )
+            # Create a figure and axis object
+            _, ax = plt.subplots(figsize=(10, 6))
 
-            # Set the axis labels and title
-            plt.xlabel("Bin Class")
-            plt.ylabel("Estimated Mean")
-            plt.title("Interaction Plot of Estimated Means")
+            # Loop through each acquisition and plot the estimates with error bars
+            for acquisition, group in post_hoc_results2[0].groupby("aquisition"):
+                ax.errorbar(
+                    group["bin_class"],
+                    group["Estimate"],
+                    yerr=group["SE"],
+                    fmt="o-",
+                    capsize=1,
+                    label=acquisition,
+                    lolims=group["2.5_ci"],
+                    uplims=group["97.5_ci"],
+                )
 
-            # Show the plot
+            # Set axis labels and title
+            ax.set_xlabel("Bin_class")
+            ax.set_ylabel("Estimate")
+            ax.set_title("Estimates by Acquisition and Bin Class")
+
+            # Add a legend
+            ax.legend()
+
+            # Display the plot
             plt.show()
 
         # Means of each combination
@@ -263,7 +270,7 @@ def checkSignificance(
 ###TODO: Edit Main!
 if __name__ == "__main__":
     dfList = []
-    folders = ["./dataset_secondRun", "./dataset_qrun"]
+    folders = ["./dataset_secondRun", "./dataset_q_rs_run"]
     for folder in folders:
         filesList = os.listdir(folder)
         for file in filesList:
@@ -299,6 +306,6 @@ if __name__ == "__main__":
         # ["49","50"],
         # [0.5],
         bin_dividers,
-        show_plots=[True, True],
+        show_plots=[False, True],
     )
     print("Done")
