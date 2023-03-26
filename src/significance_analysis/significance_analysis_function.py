@@ -5,7 +5,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import scipy.stats as stats
-import seaborn as sns
 from pymer4.models import Lmer
 
 # import matplotlib.backends.backend_tkagg as tkagg
@@ -75,9 +74,6 @@ def checkSignificance(
             raise SystemExit("Subset need to be list of strings.")
     else:
 
-        pd.set_option("display.width", None)
-        pd.set_option("display.max_colwidth", None)
-        pd.options.display.max_rows = 500
         if isinstance(show_plots, bool):
             show_plots = [show_plots, show_plots]
 
@@ -90,6 +86,8 @@ def checkSignificance(
                 "p": 1 - stats.chi2.cdf(chi_square, df=delta_params),
             }
 
+        pd.options.mode.chained_assignment = None
+
         if bin_id is not None and bin_labels is not None and bin_dividers is not None:
             if not 0 in bin_dividers:
                 bin_dividers.append(0)
@@ -100,19 +98,12 @@ def checkSignificance(
                 raise SystemExit("Dividiers do not fit divider-labels")
 
         if show_plots[0]:
-
-            sns.set(style="darkgrid")
-            g = sns.FacetGrid(data, col=system_id, col_wrap=3, height=4)
-            g.map(
-                sns.regplot,
-                bin_id,
-                metric,
-                lowess=True,
-                scatter_kws={"s": 10, "alpha": 0.5},
+            _, ax = plt.subplots()
+            ax.boxplot(
+                [group[metric] for _, group in data.groupby(system_id)],
+                labels=data[system_id].unique(),
             )
-            # Generate contour lines for entire dataset
-            # sns.kdeplot(x=data[bin_id], y=data[metric], levels=5, alpha=0.5, ax=g.fig.gca())
-
+            plt.yscale("log")
             plt.show()
 
         # System-identifier: system_id
@@ -138,14 +129,67 @@ def checkSignificance(
         # Signficant p-value shows, that different-Model fits data sign. better, i.e.
         # There is signficant difference in system-identifier
         result_GLRT_dM_cM = GLRT(differentMeans_model, commonMean_model)
-        print(result_GLRT_dM_cM)
+        p_value = result_GLRT_dM_cM["p"]
+        if result_GLRT_dM_cM["p"] < 0.05:
+            print(
+                f"\nAs the p-value {p_value} is smaller than 0.05, we can reject the Null-Hypothesis that the model "
+                f"that does not consider the {system_id} describes the data as well as the one that does. Therefore "
+                f"there is significant difference within {system_id}.\n"
+            )
+        else:
+            print(
+                f"\nAs the p-value {p_value} is not smaller than 0.05, we cannot reject the Null-Hypothesis that the model "
+                f"that does not consider the {system_id} describes the data as well as the one that does. Therefore "
+                f"there is no significant difference within {system_id}\n."
+            )
 
         # Post hoc divides the "different"-Model into its three systems
         post_hoc_results = differentMeans_model.post_hoc(marginal_vars=[system_id])
+        contrasts = post_hoc_results[1]
+        for pair in contrasts["Contrast"]:
+            contrasts.loc[contrasts["Contrast"] == pair, system_id + "_1"] = pair.split(
+                " - "
+            )[0]
+            contrasts.loc[contrasts["Contrast"] == pair, system_id + "_2"] = pair.split(
+                " - "
+            )[1]
+        contrasts = contrasts.drop("Contrast", axis=1)
+        column = contrasts.pop(system_id + "_2")
+        contrasts.insert(0, system_id + "_2", column)
+        column = contrasts.pop(system_id + "_1")
+        contrasts.insert(0, system_id + "_1", column)
         # [0] shows group-means, i.e. performance of the single system-groups
         print(post_hoc_results[0])  # cell (group) means
         # [1] shows the pairwise comparisons, i.e. improvements over each other, with p-value
-        print(post_hoc_results[1])  # contrasts (group differences)
+        print(contrasts)  # contrasts (group differences)
+        best_system_id = post_hoc_results[0].loc[
+            post_hoc_results[0]["Estimate"].idxmin()
+        ][system_id]
+        contenders = []
+        for _, row in contrasts.iterrows():
+            if row[system_id + "_1"] == best_system_id and not row["Sig"] in [
+                "*",
+                "**",
+                "***",
+            ]:
+                contenders.append(row[system_id + "_2"])
+            if row[system_id + "_2"] == best_system_id and not row["Sig"] in [
+                "*",
+                "**",
+                "***",
+            ]:
+                contenders.append(row[system_id + "_1"])
+        print(
+            f"The best performing {system_id} is {best_system_id}, but {contenders} are only insignificantly worse.\n"
+        )
+
+        # import Orange
+        # Generate the critical difference diagram
+        # cd = Orange.evaluation.scoring.compute_CD(post_hoc_results[1], alpha=0.05, test="nemenyi")
+
+        # Plot the critical difference diagram
+        # Orange.evaluation.graph_ranks(cd, labels=post_hoc_results[1].domain.attributes[0].values)
+        # plt.show()
 
         if not (
             bin_id is not None and bin_labels is not None and bin_dividers is not None
@@ -202,67 +246,93 @@ def checkSignificance(
 
         # If it's significant, look at if different systems perform better at different bin-classes
         result_GLRT_ex_ni = GLRT(model_expanded, model_nointeraction)
-        print(result_GLRT_ex_ni)  # test interaction
+        p_value = result_GLRT_ex_ni["p"]
+        if p_value < 0.05:
+            print(
+                f"\nAs the p-value {p_value} is smaller than 0.05, we can reject the Null-Hypothesis that the model "
+                f"that does not consider the {system_id} and the {bin_id} describes the data as well as the one that does. Therefore "
+                f"there is significant difference within {system_id} and the {bin_id}.\n"
+            )
+        else:
+            print(
+                f"\nAs the p-value {p_value} is not smaller than 0.05, we cannot reject the Null-Hypothesis that the model "
+                f"that does not consider the {system_id} and the {bin_id} describes the data as well as the one that does. Therefore "
+                f"there is no significant difference within {system_id} and the {bin_id}\n."
+            )
 
         post_hoc_results2 = model_expanded.post_hoc(
             marginal_vars=system_id, grouping_vars="bin_class"
         )
+        # Means of each combination
+        print(post_hoc_results2[0])
+        # Comparisons for each combination
+        for bin_class in bin_labels:
+            contrasts = post_hoc_results2[1].query("bin_class == '" + bin_class + "'")
+
+            for pair in contrasts["Contrast"]:
+                contrasts.loc[
+                    contrasts["Contrast"] == pair, system_id + "_1"
+                ] = pair.split(" - ")[0]
+                contrasts.loc[
+                    contrasts["Contrast"] == pair, system_id + "_2"
+                ] = pair.split(" - ")[1]
+            contrasts = contrasts.drop("Contrast", axis=1)
+            column = contrasts.pop(system_id + "_2")
+            contrasts.insert(0, system_id + "_2", column)
+            column = contrasts.pop(system_id + "_1")
+            contrasts.insert(0, system_id + "_1", column)
+            print(
+                contrasts[
+                    (contrasts["Sig"] == "***")
+                    | (contrasts["Sig"] == "**")
+                    | (contrasts["Sig"] == "*")
+                ]
+            )
+            best_system_id = (
+                post_hoc_results2[0]
+                .query("bin_class == '" + bin_class + "'")
+                .loc[
+                    post_hoc_results2[0]
+                    .query("bin_class == '" + bin_class + "'")["Estimate"]
+                    .idxmin()
+                ][system_id]
+            )
+            contenders = []
+            for _, row in contrasts.iterrows():
+                if row[system_id + "_1"] == best_system_id and not row["Sig"] in [
+                    "*",
+                    "**",
+                    "***",
+                ]:
+                    contenders.append(row[system_id + "_2"])
+                if row[system_id + "_2"] == best_system_id and not row["Sig"] in [
+                    "*",
+                    "**",
+                    "***",
+                ]:
+                    contenders.append(row[system_id + "_1"])
+            print(
+                f"The best performing {system_id} in bin-class {bin_class} is {best_system_id}, but {contenders} are only insignificantly worse.\n"
+            )
 
         if show_plots[1]:
-
-            # Create a figure and axis object
             _, ax = plt.subplots(figsize=(10, 6))
-
-            # Loop through each acquisition and plot the estimates with error bars
-            for acquisition, group in post_hoc_results2[0].groupby("aquisition"):
+            for sys_id, group in post_hoc_results2[0].groupby(system_id):
                 ax.errorbar(
                     group["bin_class"],
                     group["Estimate"],
                     yerr=group["SE"],
                     fmt="o-",
                     capsize=1,
-                    label=acquisition,
+                    label=sys_id,
                     lolims=group["2.5_ci"],
                     uplims=group["97.5_ci"],
                 )
-
-            # Set axis labels and title
-            ax.set_xlabel("Bin_class")
+            ax.set_xlabel(bin_id)
             ax.set_ylabel("Estimate")
-            ax.set_title("Estimates by Acquisition and Bin Class")
-
-            # Add a legend
+            ax.set_title(f"Estimates by {system_id} and {bin_id}")
             ax.legend()
-
-            # Display the plot
             plt.show()
-
-        # Means of each combination
-        print(post_hoc_results2[0])
-        # Comparisons for each combination
-        for bin_class in bin_labels:
-            print(
-                post_hoc_results2[1].query("bin_class == '" + bin_class + "'")[
-                    (
-                        post_hoc_results2[1].query("bin_class == '" + bin_class + "'")[
-                            "Sig"
-                        ]
-                        == "***"
-                    )
-                    | (
-                        post_hoc_results2[1].query("bin_class == '" + bin_class + "'")[
-                            "Sig"
-                        ]
-                        == "**"
-                    )
-                    | (
-                        post_hoc_results2[1].query("bin_class == '" + bin_class + "'")[
-                            "Sig"
-                        ]
-                        == "*"
-                    )
-                ]
-            )
 
         return result_GLRT_dM_cM, post_hoc_results, result_GLRT_ex_ni, post_hoc_results2
 
@@ -287,11 +357,12 @@ if __name__ == "__main__":
         .drop("metric_name", axis=1)
         .drop("index", axis=1)
     )
+    data = data.rename(columns={"aquisition": "acquisition"})
     # data=data.loc[data["budget"] <9]
     # data=data.drop('frac_nonnull#,errors='ignore')
     # data = pd.read_pickle("./sign_analysis_example/example_dataset.pkl")
     metric = "mean"
-    system_id = "aquisition"
+    system_id = "acquisition"
     input_id = "benchmark"
     bin_id = "budget"
     bin_labels = ["0-16% (Sobol)", "16-37%", "37-58%", "58-79%", "79-100%"]
@@ -309,3 +380,8 @@ if __name__ == "__main__":
         show_plots=[False, True],
     )
     print("Done")
+
+
+# pip install signficance-analysis
+
+# checkSignificance(data,"mean","acquisition","benchmark","budget")
