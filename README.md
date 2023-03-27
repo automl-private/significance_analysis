@@ -12,7 +12,7 @@ As indicated with the `v0.x.x` version number, Significance Analysis is early st
 
 ## Documentation
 
-Please have a look at our [example](sign_analysis_example/example_analysis.py).
+Please have a look at our [example](significance_analysis_example/example_analysis.py).
 The dataset should have the following format:
 
 | system_id<br>(algorithm name) | input_id<br>(benchmark name) | metric<br>(mean/estimate) | optional: bin_id<br>(budget/traininground) |
@@ -49,10 +49,10 @@ import pandas as pd
 from signficance_analysis import conduct_analysis
 
 # 1. Generate/import dataset
-data = pd.read_csv("./exampleDataset.csv")
+data = pd.read_csv("./significance_analysis_example/exampleDataset.csv")
 
 # 2. Analyse dataset
 conduct_analysis(data, "mean", "acquisition", "benchark")
 ```
 
-For more details and features please have a look at our [example](sign_analysis_example/example_analysis.py).
+For more details and features please have a look at our [example](significance_analysis_example/example_analysis.py).
