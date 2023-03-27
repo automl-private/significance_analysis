@@ -1,4 +1,3 @@
-import os
 import typing
 
 import matplotlib.pyplot as plt
@@ -7,13 +6,8 @@ import pandas as pd
 import scipy.stats as stats
 from pymer4.models import Lmer
 
-# import matplotlib.backends.backend_tkagg as tkagg
-# from matplotlib.backends.backend_agg import FigureCanvasAgg
-# from matplotlib.figure import Figure
-# import tkinter as tk
 
-
-def checkSignificance(
+def conduct_analysis(
     data: pd.DataFrame,
     metric: str,
     system_id: str,
@@ -27,7 +21,7 @@ def checkSignificance(
     if subset is not None and isinstance(subset[1], str):
         if subset[1] == "all" or subset[1] == "a":
             for subset_item in list(data[subset[0]].unique()):
-                checkSignificance(
+                conduct_analysis(
                     data.loc[data[subset[0]] == subset_item],
                     metric,
                     system_id,
@@ -38,7 +32,7 @@ def checkSignificance(
                     show_plots=show_plots,
                 )
         elif subset[1] in data[subset[0]].unique():
-            checkSignificance(
+            conduct_analysis(
                 data.loc[data[subset[0]] == subset[1]],
                 metric,
                 system_id,
@@ -60,7 +54,7 @@ def checkSignificance(
             for subset_item in subset[1]:
                 if subset_item not in data[subset[0]].unique():
                     raise SystemExit("Subset-Name not in Dataset.")
-                checkSignificance(
+                conduct_analysis(
                     data.loc[data[subset[0]] == subset_item],
                     metric,
                     system_id,
@@ -191,13 +185,6 @@ def checkSignificance(
             print(
                 f"The best performing {system_id} is {best_system_id}, all other perform significantly worse.\n"
             )
-        # import Orange
-        # Generate the critical difference diagram
-        # cd = Orange.evaluation.scoring.compute_CD(post_hoc_results[1], alpha=0.05, test="nemenyi")
-
-        # Plot the critical difference diagram
-        # Orange.evaluation.graph_ranks(cd, labels=post_hoc_results[1].domain.attributes[0].values)
-        # plt.show()
 
         if not (
             bin_id is not None and bin_labels is not None and bin_dividers is not None
@@ -349,65 +336,3 @@ def checkSignificance(
             plt.show()
 
         return result_GLRT_dM_cM, post_hoc_results, result_GLRT_ex_ni, post_hoc_results2
-
-
-###TODO: Edit Main!
-if __name__ == "__main__":
-    dfList = []
-    folders = ["./dataset_secondRun", "./dataset_q_rs_run", "./dataset_SR_KG_run"]
-    for folder in folders:
-        filesList = os.listdir(folder)
-        for file in filesList:
-            df = pd.read_pickle(folder + "/" + file)
-            # print(df)
-            df["mean"] = df["mean"].cummin()
-            if df["aquisition"].unique()[0][0] == "q":
-                df["acqu_class"] = "MonteCarlo"
-            elif df["aquisition"].unique()[0] == "randomSearch":
-                df["acqu_class"] = "RandomSearch"
-            else:
-                df["acqu_class"] = "Analytical"
-            dfList.append(df)
-    data = pd.concat(dfList)
-    data = data.reset_index()
-    data = (
-        data.drop("n", axis=1)
-        .drop("frac_nonnull", axis=1)
-        .drop("metric_name", axis=1)
-        .drop("index", axis=1)
-    )
-    data = data.rename(columns={"aquisition": "acquisition"}).sort_values(
-        ["acquisition", "benchmark", "seed", "budget"]
-    )
-    data = data.loc[data["budget"] >= 9]
-    # data=data.drop('frac_nonnull#,errors='ignore')
-    # data = pd.read_pickle("./sign_analysis_example/example_dataset.pkl")
-    metric = "mean"
-    system_id = "acqu_class"
-    input_id = "benchmark"
-    bin_id = "budget"
-    bin_labels = ["16-36%", "37-56%", "57-76%", "77-96%", "97-100%"]
-    bin_dividers = [0.24, 0.48, 0.72, 0.96]
-    print(data)
-    checkSignificance(
-        data,
-        metric,
-        system_id,
-        input_id,
-        bin_id,
-        bin_labels,
-        # ["49","50"],
-        # [0.5],
-        bin_dividers,
-        show_plots=[True, True],
-    )
-    print("Done")
-
-
-# pip install signficance-analysis
-
-# bin_labels = ["16-36%", "37-56%", "57-76%", "77-96%", "97-100%"]
-# bin_dividers = [0.24, 0.48, 0.72, 0.96]
-
-
-# checkSignificance(data,"mean","acqu_class","benchmark","budget")

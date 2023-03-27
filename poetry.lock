@@ -849,28 +849,6 @@ files = [
 ]
 
 [[package]]
-name = "orange"
-version = "2.7.8"
-description = "Orange, a component-based data mining framework."
-category = "main"
-optional = false
-python-versions = "*"
-files = [
-    {file = "Orange-2.7.8-cp27-none-macosx_10_6_intel.whl", hash = "sha256:cb33a1d31875295f6b5e28996492a720881d51403493d668bb1314dd204b6831"},
-    {file = "Orange-2.7.8-cp27-none-win32.whl", hash = "sha256:c6fd9e1b19d71d71fba597ab94a8114aecef6307cfe1d3bb22fd09e5b6a549b1"},
-    {file = "Orange-2.7.8.tar.gz", hash = "sha256:9602d621d8258c90a8122b2ae2eb7471139836f0a16b6941e83735739913af5c"},
-]
-
-[package.dependencies]
-numpy = "*"
-scipy = "*"
-setuptools = "*"
-
-[package.extras]
-gui = ["PyQt4", "PyQwt"]
-rest = ["numpydoc"]
-
-[[package]]
 name = "packaging"
 version = "23.0"
 description = "Core utilities for Python packages"
@@ -1365,7 +1343,7 @@ stats = ["scipy (>=1.3)", "statsmodels (>=0.10)"]
 name = "setuptools"
 version = "67.6.0"
 description = "Easily download, build, install, upgrade, and uninstall Python packages"
-category = "main"
+category = "dev"
 optional = false
 python-versions = ">=3.7"
 files = [
@@ -1537,4 +1515,4 @@ testing = ["big-O", "flake8 (<5)", "jaraco.functools", "jaraco.itertools", "more
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.8,<3.11"
-content-hash = "c64d78c4cb34c72e1de44090820a34eb0b256a5470d0d77ac559275ceb397909"
+content-hash = "7d436844e77d2e1b5fa260caff32a42401ff808846685543182bb9aab9f23d0a"
