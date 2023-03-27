@@ -23,7 +23,7 @@ The dataset should have the following format:
 | ...                           | ...                          | ...                       | ...                                        |
 | Algorithm2                    | Benchmark2                   | x..xxx                    | 2                                          |
 
-In this dataset, there are two different algorithms, trained on two benchmarks for two iterations each. The variable-names (system_id, input_id...) can be customized, but have to be consistent throughout the dataset, i.e. not "mean" for one benchmark and "estimate" for another. The `Significance Analysis` function is then called with the dataset and the variable-names as parameters.
+In this dataset, there are two different algorithms, trained on two benchmarks for two iterations each. The variable-names (system_id, input_id...) can be customized, but have to be consistent throughout the dataset, i.e. not "mean" for one benchmark and "estimate" for another. The `conduct_analysis` function is then called with the dataset and the variable-names as parameters.
 Optionally the dataset can be binned according to a fourth variable (bin_id) and the analysis is conducted on each of the bins seperately, as shown in the code example above. To do this, provide the name of the bin_id-variable, the bin intervals and the labels for thems.
 
 ## Installation
@@ -40,18 +40,19 @@ install packages: Matrix, emmeans, lmerTest
 ## Usage
 
 1. Generate data from HPO-algorithms on benchmarks, saving data according to our format.
-1. Call function `checkSignificance` on dataset, while specifying variable-names
+1. Call function `conduct_analysis` on dataset, while specifying variable-names
 
 In code, the usage pattern can look like this:
 
 ```python
-from signficance_analysis import checkSignificance
+import pandas as pd
+from signficance_analysis import conduct_analysis
 
 # 1. Generate/import dataset
-data = pd.read_pickle("./exampleDataset.pkl")
+data = pd.read_csv("./exampleDataset.csv")
 
 # 2. Analyse dataset
-checkSignificance(data, "mean", "surrogate_aquisition", "benchark")
+conduct_analysis(data, "mean", "acquisition", "benchark")
 ```
 
 For more details and features please have a look at our [example](sign_analysis_example/example_analysis.py).
