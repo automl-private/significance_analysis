@@ -87,6 +87,9 @@ def checkSignificance(
             }
 
         pd.options.mode.chained_assignment = None
+        pd.set_option("display.max_rows", 5000)
+        pd.set_option("display.max_columns", 5000)
+        pd.set_option("display.width", 10000)
 
         if bin_id is not None and bin_labels is not None and bin_dividers is not None:
             if not 0 in bin_dividers:
@@ -114,7 +117,6 @@ def checkSignificance(
             formula=metric + " ~ " + system_id + " + (1 | " + input_id + ")", data=data
         )
 
-        print(data)
         # factors specifies names of system_identifier, i.e. Baseline, or Algorithm1
         differentMeans_model.fit(
             factors={system_id: list(data[system_id].unique())},
@@ -130,6 +132,7 @@ def checkSignificance(
         # There is signficant difference in system-identifier
         result_GLRT_dM_cM = GLRT(differentMeans_model, commonMean_model)
         p_value = result_GLRT_dM_cM["p"]
+        print(f"P-value: {p_value}")
         if result_GLRT_dM_cM["p"] < 0.05:
             print(
                 f"\nAs the p-value {p_value} is smaller than 0.05, we can reject the Null-Hypothesis that the model "
@@ -179,10 +182,15 @@ def checkSignificance(
                 "***",
             ]:
                 contenders.append(row[system_id + "_1"])
-        print(
-            f"The best performing {system_id} is {best_system_id}, but {contenders} are only insignificantly worse.\n"
-        )
 
+        if contenders:
+            print(
+                f"The best performing {system_id} is {best_system_id}, but {contenders} are only insignificantly worse.\n"
+            )
+        else:
+            print(
+                f"The best performing {system_id} is {best_system_id}, all other perform significantly worse.\n"
+            )
         # import Orange
         # Generate the critical difference diagram
         # cd = Orange.evaluation.scoring.compute_CD(post_hoc_results[1], alpha=0.05, test="nemenyi")
@@ -247,6 +255,7 @@ def checkSignificance(
         # If it's significant, look at if different systems perform better at different bin-classes
         result_GLRT_ex_ni = GLRT(model_expanded, model_nointeraction)
         p_value = result_GLRT_ex_ni["p"]
+        print(f"P-value: {p_value}")
         if p_value < 0.05:
             print(
                 f"\nAs the p-value {p_value} is smaller than 0.05, we can reject the Null-Hypothesis that the model "
@@ -257,7 +266,7 @@ def checkSignificance(
             print(
                 f"\nAs the p-value {p_value} is not smaller than 0.05, we cannot reject the Null-Hypothesis that the model "
                 f"that does not consider the {system_id} and the {bin_id} describes the data as well as the one that does. Therefore "
-                f"there is no significant difference within {system_id} and the {bin_id}\n."
+                f"there is no significant difference within {system_id} and {bin_id}\n."
             )
 
         post_hoc_results2 = model_expanded.post_hoc(
@@ -311,9 +320,14 @@ def checkSignificance(
                     "***",
                 ]:
                     contenders.append(row[system_id + "_1"])
-            print(
-                f"The best performing {system_id} in bin-class {bin_class} is {best_system_id}, but {contenders} are only insignificantly worse.\n"
-            )
+            if contenders:
+                print(
+                    f"The best performing {system_id} in bin-class {bin_class} is {best_system_id}, but {contenders} are only insignificantly worse.\n"
+                )
+            else:
+                print(
+                    f"The best performing {system_id} in bin-class {bin_class} is {best_system_id}, all other perform significantly worse.\n"
+                )
 
         if show_plots[1]:
             _, ax = plt.subplots(figsize=(10, 6))
@@ -340,14 +354,19 @@ def checkSignificance(
 ###TODO: Edit Main!
 if __name__ == "__main__":
     dfList = []
-    folders = ["./dataset_secondRun", "./dataset_q_rs_run"]
+    folders = ["./dataset_secondRun", "./dataset_q_rs_run", "./dataset_SR_KG_run"]
     for folder in folders:
         filesList = os.listdir(folder)
         for file in filesList:
             df = pd.read_pickle(folder + "/" + file)
             # print(df)
             df["mean"] = df["mean"].cummin()
-            # print(df)
+            if df["aquisition"].unique()[0][0] == "q":
+                df["acqu_class"] = "MonteCarlo"
+            elif df["aquisition"].unique()[0] == "randomSearch":
+                df["acqu_class"] = "RandomSearch"
+            else:
+                df["acqu_class"] = "Analytical"
             dfList.append(df)
     data = pd.concat(dfList)
     data = data.reset_index()
@@ -357,16 +376,19 @@ if __name__ == "__main__":
         .drop("metric_name", axis=1)
         .drop("index", axis=1)
     )
-    data = data.rename(columns={"aquisition": "acquisition"})
-    # data=data.loc[data["budget"] <9]
+    data = data.rename(columns={"aquisition": "acquisition"}).sort_values(
+        ["acquisition", "benchmark", "seed", "budget"]
+    )
+    data = data.loc[data["budget"] >= 9]
     # data=data.drop('frac_nonnull#,errors='ignore')
     # data = pd.read_pickle("./sign_analysis_example/example_dataset.pkl")
     metric = "mean"
-    system_id = "acquisition"
+    system_id = "acqu_class"
     input_id = "benchmark"
     bin_id = "budget"
-    bin_labels = ["0-16% (Sobol)", "16-37%", "37-58%", "58-79%", "79-100%"]
-    bin_dividers = [0.16, 0.37, 0.58, 0.79, 1]
+    bin_labels = ["16-36%", "37-56%", "57-76%", "77-96%", "97-100%"]
+    bin_dividers = [0.24, 0.48, 0.72, 0.96]
+    print(data)
     checkSignificance(
         data,
         metric,
@@ -377,11 +399,15 @@ if __name__ == "__main__":
         # ["49","50"],
         # [0.5],
         bin_dividers,
-        show_plots=[False, True],
+        show_plots=[True, True],
     )
     print("Done")
 
 
 # pip install signficance-analysis
 
-# checkSignificance(data,"mean","acquisition","benchmark","budget")
+# bin_labels = ["16-36%", "37-56%", "57-76%", "77-96%", "97-100%"]
+# bin_dividers = [0.24, 0.48, 0.72, 0.96]
+
+
+# checkSignificance(data,"mean","acqu_class","benchmark","budget")
