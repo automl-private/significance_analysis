@@ -17,10 +17,12 @@ def conduct_analysis(
     bin_dividers: list[float] = None,
     subset: typing.Tuple[str, typing.Union[str, list[str]]] = None,
     show_plots: typing.Union[list[bool], bool] = True,
+    summarize: bool = True,
 ):
     if subset is not None and isinstance(subset[1], str):
         if subset[1] == "all" or subset[1] == "a":
             for subset_item in list(data[subset[0]].unique()):
+                print(f"Analysis for {subset_item}")
                 conduct_analysis(
                     data.loc[data[subset[0]] == subset_item],
                     metric,
@@ -30,6 +32,7 @@ def conduct_analysis(
                     bin_labels,
                     bin_dividers,
                     show_plots=show_plots,
+                    summarize=summarize,
                 )
         elif subset[1] in data[subset[0]].unique():
             conduct_analysis(
@@ -41,10 +44,11 @@ def conduct_analysis(
                 bin_labels,
                 bin_dividers,
                 show_plots=show_plots,
+                summarize=summarize,
             )
         else:
             raise SystemExit(
-                'Benchmark-Name not in Dataset. Use "all" or "a" to analyse all benchmarks individually or use valid benchmark name/list of valid benchmark names.'
+                f'Benchmark-Name not in Dataset. Choose from {data[subset[0]].unique()} or use "all" or "a" to analyse all benchmarks individually or use valid benchmark name/list of valid benchmark names.'
             )
     elif subset is not None and isinstance(subset[1], list):
         print(subset)
@@ -63,6 +67,7 @@ def conduct_analysis(
                     bin_labels,
                     bin_dividers,
                     show_plots=show_plots,
+                    summarize=summarize,
                 )
         else:
             raise SystemExit("Subset need to be list of strings.")
@@ -84,6 +89,12 @@ def conduct_analysis(
         pd.set_option("display.max_rows", 5000)
         pd.set_option("display.max_columns", 5000)
         pd.set_option("display.width", 10000)
+        # print(data.describe())
+        # profile=pandas_profiling.ProfileReport(data,title="HPO_Report")
+        # profile.to_file("HPO_Report.html")
+
+        if len(data[input_id].unique()) == 1:
+            data.loc[data.sample(1).index, input_id] = data[input_id].unique()[0] + "_d"
 
         if bin_id is not None and bin_labels is not None and bin_dividers is not None:
             if not 0 in bin_dividers:
@@ -108,7 +119,7 @@ def conduct_analysis(
         # Two models, "different"-Model assumes significant difference between performance of groups, divided by system-identifier
         # Formula has form: "metric ~ system_id + (1 | input_id)"
         differentMeans_model = Lmer(
-            formula=metric + " ~ " + system_id + " + (1 | " + input_id + ")", data=data
+            formula=f"{metric}~{system_id}+(1|{input_id})", data=data
         )
 
         # factors specifies names of system_identifier, i.e. Baseline, or Algorithm1
@@ -119,7 +130,7 @@ def conduct_analysis(
         )
 
         # "Common"-Model assumes no significant difference, which is why the system-identifier is not included
-        commonMean_model = Lmer(formula=metric + " ~ (1 | " + input_id + ")", data=data)
+        commonMean_model = Lmer(formula=f"{metric}~ (1 | {input_id})", data=data)
         commonMean_model.fit(REML=False, summarize=False)
 
         # Signficant p-value shows, that different-Model fits data sign. better, i.e.
@@ -155,13 +166,17 @@ def conduct_analysis(
         contrasts.insert(0, system_id + "_2", column)
         column = contrasts.pop(system_id + "_1")
         contrasts.insert(0, system_id + "_1", column)
-        # [0] shows group-means, i.e. performance of the single system-groups
-        print(post_hoc_results[0])  # cell (group) means
-        # [1] shows the pairwise comparisons, i.e. improvements over each other, with p-value
-        print(contrasts)  # contrasts (group differences)
+
+        if summarize:
+            # [0] shows group-means, i.e. performance of the single system-groups
+            print(post_hoc_results[0])  # cell (group) means
+            # [1] shows the pairwise comparisons, i.e. improvements over each other, with p-value
+            print(contrasts)  # contrasts (group differences)
+
         best_system_id = post_hoc_results[0].loc[
             post_hoc_results[0]["Estimate"].idxmin()
         ][system_id]
+
         contenders = []
         for _, row in contrasts.iterrows():
             if row[system_id + "_1"] == best_system_id and not row["Sig"] in [
@@ -259,8 +274,9 @@ def conduct_analysis(
         post_hoc_results2 = model_expanded.post_hoc(
             marginal_vars=system_id, grouping_vars="bin_class"
         )
-        # Means of each combination
-        print(post_hoc_results2[0])
+        if summarize:
+            # Means of each combination
+            print(post_hoc_results2[0])
         # Comparisons for each combination
         for bin_class in bin_labels:
             contrasts = post_hoc_results2[1].query("bin_class == '" + bin_class + "'")
@@ -277,13 +293,14 @@ def conduct_analysis(
             contrasts.insert(0, system_id + "_2", column)
             column = contrasts.pop(system_id + "_1")
             contrasts.insert(0, system_id + "_1", column)
-            print(
-                contrasts[
-                    (contrasts["Sig"] == "***")
-                    | (contrasts["Sig"] == "**")
-                    | (contrasts["Sig"] == "*")
-                ]
-            )
+            if summarize:
+                print(
+                    contrasts[
+                        (contrasts["Sig"] == "***")
+                        | (contrasts["Sig"] == "**")
+                        | (contrasts["Sig"] == "*")
+                    ]
+                )
             best_system_id = (
                 post_hoc_results2[0]
                 .query("bin_class == '" + bin_class + "'")
@@ -307,6 +324,7 @@ def conduct_analysis(
                     "***",
                 ]:
                     contenders.append(row[system_id + "_1"])
+
             if contenders:
                 print(
                     f"The best performing {system_id} in bin-class {bin_class} is {best_system_id}, but {contenders} are only insignificantly worse.\n"
