@@ -220,16 +220,7 @@ def conduct_analysis(
         )
         # New model "expanded": Divides into system AND bin-classes (Term system:bin_class allows for Cartesian Product, i.e. different Mean for each system and bin-class)
         model_expanded = Lmer(
-            (
-                metric
-                + " ~ "
-                + system_id
-                + " + bin_class + "
-                + system_id
-                + ":bin_class + (1 | "
-                + input_id
-                + ")"
-            ),
+            f"{metric} ~  {system_id} + bin_class + {system_id}:bin_class + (1 | {input_id})",
             data=data,
         )
         model_expanded.fit(
@@ -242,7 +233,7 @@ def conduct_analysis(
         )
         # Second model "nointeraction" lacks system:src-Term to hypothesise no interaction, i.e. no difference when changing bin-class
         model_nointeraction = Lmer(
-            metric + " ~ " + system_id + " + bin_class + (1 | " + input_id + ")",
+            f"{metric} ~ {system_id} + bin_class + (1 | {input_id})",
             data=data,
         )
         model_nointeraction.fit(
