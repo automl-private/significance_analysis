@@ -1,7 +1,6 @@
 import typing
 
 import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
 import scipy.stats as stats
 from pymer4.models import Lmer
@@ -13,8 +12,8 @@ def conduct_analysis(
     system_id: str,
     input_id: str,
     bin_id: str = None,
+    bins: typing.Union[list[list[str]], list[float]] = None,
     bin_labels: list[str] = None,
-    bin_dividers: list[float] = None,
     subset: typing.Tuple[str, typing.Union[str, list[str]]] = None,
     show_plots: typing.Union[list[bool], bool] = True,
     summarize: bool = True,
@@ -29,8 +28,8 @@ def conduct_analysis(
                     system_id,
                     input_id,
                     bin_id,
-                    bin_labels,
-                    bin_dividers,
+                    bins=bins,
+                    bin_labels=bin_labels,
                     show_plots=show_plots,
                     summarize=summarize,
                 )
@@ -41,8 +40,8 @@ def conduct_analysis(
                 system_id,
                 input_id,
                 bin_id,
-                bin_labels,
-                bin_dividers,
+                bins=bins,
+                bin_labels=bin_labels,
                 show_plots=show_plots,
                 summarize=summarize,
             )
@@ -64,8 +63,8 @@ def conduct_analysis(
                     system_id,
                     input_id,
                     bin_id,
-                    bin_labels,
-                    bin_dividers,
+                    bins=bins,
+                    bin_labels=bin_labels,
                     show_plots=show_plots,
                     summarize=summarize,
                 )
@@ -89,21 +88,9 @@ def conduct_analysis(
         pd.set_option("display.max_rows", 5000)
         pd.set_option("display.max_columns", 5000)
         pd.set_option("display.width", 10000)
-        # print(data.describe())
-        # profile=pandas_profiling.ProfileReport(data,title="HPO_Report")
-        # profile.to_file("HPO_Report.html")
 
         if len(data[input_id].unique()) == 1:
             data.loc[data.sample(1).index, input_id] = data[input_id].unique()[0] + "_d"
-
-        if bin_id is not None and bin_labels is not None and bin_dividers is not None:
-            if not 0 in bin_dividers:
-                bin_dividers.append(0)
-            if not 1 in bin_dividers:
-                bin_dividers.append(1)
-            bin_dividers.sort()
-            if len(bin_labels) != (len(bin_dividers) - 1):
-                raise SystemExit("Dividiers do not fit divider-labels")
 
         if show_plots[0]:
             _, ax = plt.subplots()
@@ -201,45 +188,61 @@ def conduct_analysis(
                 f"The best performing {system_id} is {best_system_id}, all other perform significantly worse.\n"
             )
 
-        if not (
-            bin_id is not None and bin_labels is not None and bin_dividers is not None
-        ):
+        if bin_id is None:
             return result_GLRT_dM_cM, post_hoc_results
 
-        bins = []
-        for div in bin_dividers:
-            bins.append(
-                np.min(data[bin_id])
-                + int((np.max(data[bin_id]) - np.min(data[bin_id])) * div)
-            )
-        # Bin the data into classes according to bin_dividers
-        data = data.assign(
-            bin_class=lambda x: pd.cut(
-                x[bin_id], bins=bins, labels=bin_labels, include_lowest=True
-            )
-        )
-        # New model "expanded": Divides into system AND bin-classes (Term system:bin_class allows for Cartesian Product, i.e. different Mean for each system and bin-class)
+        if bins is None:
+            data[f"{bin_id}_bins"] = data[bin_id]
+        else:
+            if isinstance(bins, list) and all(
+                isinstance(bin, (float, int)) for bin in bins
+            ):
+                if bin_labels is None:
+                    bin_labels = [f"{bins[i]}_{bins[i+1]}" for i in range(len(bins) - 1)]
+                else:
+                    if len(bin_labels) != len(bins) + 1:
+                        raise SystemExit(
+                            f"Too many or too few labels ({len(bin_labels)} labels and {len(bins)} bins)"
+                        )
+                data[f"{bin_id}_bins"] = pd.cut(
+                    data[bin_id], bins=bins, labels=bin_labels, include_lowest=True
+                )
+            else:
+                if bin_labels is not None:
+                    if len(bin_labels) != len(bins):
+                        raise SystemExit(
+                            f"Too many or too few labels ({len(bin_labels)} labels and {len(bins)} bins)"
+                        )
+                    data[f"{bin_id}_bins"] = data[bin_id].apply(
+                        lambda x: bin_labels[bins.index([s for s in bins if x in s][0])]
+                    )
+                else:
+                    data[f"{bin_id}_bins"] = data[bin_id].apply(
+                        lambda x: "_".join([s for s in bins if x in s][0])
+                    )
+
+        # New model "expanded": Divides into system AND bin-classes (Term system:bin_id allows for Cartesian Product, i.e. different Mean for each system and bin-class)
         model_expanded = Lmer(
-            f"{metric} ~  {system_id} + bin_class + {system_id}:bin_class + (1 | {input_id})",
+            f"{metric} ~  {system_id} + {bin_id}_bins + {system_id}:{bin_id}_bins + (1 | {input_id})",
             data=data,
         )
         model_expanded.fit(
             factors={
                 system_id: list(data[system_id].unique()),
-                "bin_class": list(data["bin_class"].unique()),
+                f"{bin_id}_bins": list(data[f"{bin_id}_bins"].unique()),
             },
             REML=False,
             summarize=False,
         )
         # Second model "nointeraction" lacks system:src-Term to hypothesise no interaction, i.e. no difference when changing bin-class
         model_nointeraction = Lmer(
-            f"{metric} ~ {system_id} + bin_class + (1 | {input_id})",
+            f"{metric} ~ {system_id} + {bin_id}_bins + (1 | {input_id})",
             data=data,
         )
         model_nointeraction.fit(
             factors={
                 system_id: list(data[system_id].unique()),
-                "bin_class": list(data["bin_class"].unique()),
+                f"{bin_id}_bins": list(data[f"{bin_id}_bins"].unique()),
             },
             REML=False,
             summarize=False,
@@ -263,14 +266,14 @@ def conduct_analysis(
             )
 
         post_hoc_results2 = model_expanded.post_hoc(
-            marginal_vars=system_id, grouping_vars="bin_class"
+            marginal_vars=system_id, grouping_vars=f"{bin_id}_bins"
         )
         if summarize:
             # Means of each combination
             print(post_hoc_results2[0])
         # Comparisons for each combination
-        for bin_class in bin_labels:
-            contrasts = post_hoc_results2[1].query("bin_class == '" + bin_class + "'")
+        for group in data[f"{bin_id}_bins"].unique():
+            contrasts = post_hoc_results2[1].query(f"{bin_id}_bins == '{group}'")
 
             for pair in contrasts["Contrast"]:
                 contrasts.loc[
@@ -294,10 +297,10 @@ def conduct_analysis(
                 )
             best_system_id = (
                 post_hoc_results2[0]
-                .query("bin_class == '" + bin_class + "'")
+                .query(f"{bin_id}_bins == '{group}'")
                 .loc[
                     post_hoc_results2[0]
-                    .query("bin_class == '" + bin_class + "'")["Estimate"]
+                    .query(f"{bin_id}_bins == '{group}'")["Estimate"]
                     .idxmin()
                 ][system_id]
             )
@@ -318,18 +321,18 @@ def conduct_analysis(
 
             if contenders:
                 print(
-                    f"The best performing {system_id} in bin-class {bin_class} is {best_system_id}, but {contenders} are only insignificantly worse.\n"
+                    f"The best performing {system_id} in {bin_id}-class {group} is {best_system_id}, but {contenders} are only insignificantly worse.\n"
                 )
             else:
                 print(
-                    f"The best performing {system_id} in bin-class {bin_class} is {best_system_id}, all other perform significantly worse.\n"
+                    f"The best performing {system_id} in {bin_id}-class {group} is {best_system_id}, all other perform significantly worse.\n"
                 )
 
         if show_plots[1]:
             _, ax = plt.subplots(figsize=(10, 6))
             for sys_id, group in post_hoc_results2[0].groupby(system_id):
                 ax.errorbar(
-                    group["bin_class"],
+                    group[f"{bin_id}_bins"],
                     group["Estimate"],
                     yerr=group["SE"],
                     fmt="o-",
