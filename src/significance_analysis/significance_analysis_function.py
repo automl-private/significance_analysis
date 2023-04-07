@@ -197,6 +197,10 @@ def conduct_analysis(
             if isinstance(bins, list) and all(
                 isinstance(bin, (float, int)) for bin in bins
             ):
+                bins_set = set(bins)
+                bins_set.add(data[bin_id].min())
+                bins_set.add(data[bin_id].max())
+                bins = sorted(list(bins_set))
                 if bin_labels is None:
                     bin_labels = [f"{bins[i]}_{bins[i+1]}" for i in range(len(bins) - 1)]
                 else:

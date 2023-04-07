@@ -10,6 +10,6 @@ if __name__ == "__main__":
         "mean",
         "acquisition",
         "benchmark",
-        bin_id="acqu_class",
-        bins=[["Analytical", "RandomSearch"], ["MonteCarlo"]],
+        bin_id="budget",
+        bins=[9, 20, 35, 45],
     )
