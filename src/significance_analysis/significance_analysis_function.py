@@ -14,8 +14,8 @@ def conduct_analysis(
     bin_id: str = None,
     bins: typing.Union[list[list[str]], list[float]] = None,
     bin_labels: list[str] = None,
-    subset: typing.Tuple[str, typing.Union[str, list[str]]] = None,
-    show_plots: typing.Union[list[bool], bool] = True,
+    subset: typing.Tuple[str, typing.Union[str, list[str], list[list[str]]]] = None,
+    show_plots: bool = True,
     summarize: bool = True,
 ) -> typing.Tuple[dict[str, any], typing.Tuple[any, pd.DataFrame]]:
     """LMER-Based Performance Analysis
@@ -28,13 +28,12 @@ def conduct_analysis(
         bin_id (str, optional): Column name of bin (e.g. Budget). Defaults to None.
         bins (typing.Union[list[list[str]], list[float]], optional): Specified bins: If None, bins for every unique value are used. If list of float, numeric variable gets binned into intervals according to list. If list of list of str, variable gets binned into bins according to sublists. Defaults to None.
         bin_labels (list[str], optional): Labels for bins. If None, bins are named after content/interval borders. If list of str, bins are named according to list. Defaults to None.
-        subset (typing.Tuple[str, typing.Union[str, list[str]]], optional): Subset of dataset that should be used for analysis. First entry of tuple is name of variable that defines subset. Second entry is either list of entries that should be analysed iteratively, or "all"/"a" for all entries. Defaults to None.
-        show_plots (typing.Union[list[bool], bool], optional): Show plots. First entry is boxplot comparing systems, second entry is graph showing systems in all bins. Defaults to True.
+        subset (typing.Tuple[str, typing.Union[str, list[str], list[list[str]]]], optional): Subset of dataset that should be used for analysis. First entry of tuple is name of variable that defines subset. Second entry is either list of entries that should be analysed iteratively (single entries or groups), or "all"/"a" for all entries. Defaults to None.
+        show_plots (bool, optional): Show plots. First entry is boxplot comparing systems, second entry is graph showing systems in all bins. Defaults to True.
         summarize (bool, optional): Print results while analysing. Defaults to True.
 
     Raises:
-        SystemExit: If Benchmark-Name is not in Dataset.
-        SystemExit: If Subset-Name is not in Dataset.
+        SystemExit: If Subset-Value is not in Dataset.
         SystemExit: If the number of Labels does not fit the number of numeric Bins.
         SystemExit: If the number of Labels does not fit the number of categorical Bins.
 
@@ -42,43 +41,24 @@ def conduct_analysis(
         typing.Tuple[dict[str,any],typing.Tuple[any,pd.DataFrame]]: First the result-dictionary of the GLRT and second the post_hoc-analysis of the LMEM.
     """
 
-    if subset is not None and isinstance(subset[1], str):
-        if subset[1] == "all" or subset[1] == "a":
-            for subset_item in list(data[subset[0]].unique()):
-                print(f"Analysis for {subset_item}")
-                conduct_analysis(
-                    data.loc[data[subset[0]] == subset_item],
-                    metric,
-                    system_id,
-                    input_id,
-                    bin_id,
-                    bins=bins,
-                    bin_labels=bin_labels,
-                    show_plots=show_plots,
-                    summarize=summarize,
-                )
-        elif subset[1] in data[subset[0]].unique():
-            conduct_analysis(
-                data.loc[data[subset[0]] == subset[1]],
-                metric,
-                system_id,
-                input_id,
-                bin_id,
-                bins=bins,
-                bin_labels=bin_labels,
-                show_plots=show_plots,
-                summarize=summarize,
-            )
+    if subset is not None:
+        if isinstance(subset[1], str):
+            if subset[1] in ["all", "a", "All", "A"]:
+                subset_list = list(data[subset[0]].unique())
+            else:
+                subset_list = [subset[1]]
         else:
-            raise SystemExit(
-                f'Benchmark-Name not in Dataset. Choose from {data[subset[0]].unique()} or use "all" or "a" to analyse all benchmarks individually or use valid benchmark name/list of valid benchmark names.'
-            )
-    elif subset is not None and isinstance(subset[1], list):
-        for subset_item in subset[1]:
-            if subset_item not in data[subset[0]].unique():
-                raise SystemExit("Subset-Name not in Dataset.")
+            subset_list = subset[1]
+        for subset_item in subset_list:
+            print(f"Analysis for {subset_item}")
+            if isinstance(subset_item, str):
+                subset_item = [subset_item]
+            if any(item not in data[subset[0]].unique() for item in subset_item):
+                raise SystemExit(
+                    f"A Subset-Value of {subset_item} is not in Dataset. Choose from {data[subset[0]].unique()}"
+                )
             conduct_analysis(
-                data.loc[data[subset[0]] == subset_item],
+                data.loc[data[subset[0]].isin(subset_item)],
                 metric,
                 system_id,
                 input_id,
@@ -89,8 +69,6 @@ def conduct_analysis(
                 summarize=summarize,
             )
     else:
-        if isinstance(show_plots, bool):
-            show_plots = [show_plots, show_plots]
 
         def GLRT(mod1, mod2):
             chi_square = 2 * abs(mod1.logLike - mod2.logLike)
@@ -107,13 +85,12 @@ def conduct_analysis(
         pd.set_option("display.width", 10000)
 
         if bin_id is None:
-
             if len(data[input_id].unique()) == 1:
                 data.loc[data.sample(1).index, input_id] = (
                     data[input_id].unique()[0] + "_d"
                 )
 
-            if show_plots[0]:
+            if show_plots:
                 _, ax = plt.subplots()
                 ax.boxplot(
                     [group[metric] for _, group in data.groupby(system_id)],
@@ -357,7 +334,7 @@ def conduct_analysis(
                         f"The best performing {system_id} in {bin_id}-class {group} is {best_system_id}, all other perform significantly worse.\n"
                     )
 
-            if show_plots[1]:
+            if show_plots:
                 _, ax = plt.subplots(figsize=(10, 6))
                 for sys_id, group in post_hoc_results[0].groupby(system_id):
                     ax.errorbar(

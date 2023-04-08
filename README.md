@@ -24,18 +24,18 @@ The dataset should have the following format:
 | Algorithm2                    | Benchmark2                   | x..xxx                    | 2                                          |
 
 In this dataset, there are two different algorithms, trained on two benchmarks for two iterations each. The variable-names (system_id, input_id...) can be customized, but have to be consistent throughout the dataset, i.e. not "mean" for one benchmark and "estimate" for another. The `conduct_analysis` function is then called with the dataset and the variable-names as parameters.
-Optionally the dataset can be binned according to a fourth variable (bin_id) and the analysis is conducted on each of the bins seperately, as shown in the code example above. To do this, provide the name of the bin_id-variable, the bin intervals and the labels for thems.
+Optionally the dataset can be binned according to a fourth variable (bin_id) and the analysis is conducted on each of the bins seperately, as shown in the code example above. To do this, provide the name of the bin_id-variable and if wanted the exact bins and bin labels. Otherwise a bin for each unique value will be created.
 
 ## Installation
+
+Using R, >=4.0.0
+install packages: Matrix, emmeans, lmerTest and lme4
 
 Using pip
 
 ```bash
 pip install significance-analysis
 ```
-
-Using R, >=4.0.0
-install packages: Matrix, emmeans, lmerTest
 
 ## Usage
 
@@ -52,7 +52,7 @@ from signficance_analysis import conduct_analysis
 data = pd.read_csv("./significance_analysis_example/exampleDataset.csv")
 
 # 2. Analyse dataset
-conduct_analysis(data, "mean", "acquisition", "benchark")
+conduct_analysis(data, "mean", "acquisition", "benchmark")
 ```
 
 For more details and features please have a look at our [example](significance_analysis_example/example_analysis.py).
