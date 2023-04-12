@@ -1,8 +1,14 @@
 import typing
 
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
+
+# import scikit_posthocs as sp
 import scipy.stats as stats
+import statsmodels as sm
+
+# import statsmodels.formula.api as smf
 from pymer4.models import Lmer
 
 
@@ -72,7 +78,7 @@ def conduct_analysis(
 
         def GLRT(mod1, mod2):
             chi_square = 2 * abs(mod1.logLike - mod2.logLike)
-            delta_params = abs(len(mod1.coefs) - len(mod2.coefs))
+            delta_params = abs(len(mod1.params) - len(mod2.params))
             return {
                 "chi_square": chi_square,
                 "df": delta_params,
@@ -103,16 +109,52 @@ def conduct_analysis(
             # Input-Identifier: input_id
             # Two models, "different"-Model assumes significant difference between performance of groups, divided by system-identifier
             # Formula has form: "metric ~ system_id + (1 | input_id)"
-            differentMeans_model = Lmer(
-                formula=f"{metric}~{system_id}+(1|{input_id})", data=data
+            # differentMeans_model = sm.MixedLM(data[metric], data[[system_id]], groups=data[input_id])
+
+            # Fit the mixed effects model
+            from patsy import dmatrix
+            from statsmodels.formula.api import mixedlm
+            from statsmodels.stats.multicomp import MultiComparison
+
+            differentMeans_model = mixedlm(
+                formula=f"{metric} ~ {system_id}", data=data, groups=input_id
+            )
+            diffModelFit = differentMeans_model.fit(method=["lbfgs"], reml=False)
+            print(diffModelFit.summary())
+            # Get predicted values for each level of system_id
+            grid = (
+                np.array(
+                    np.meshgrid(
+                        data[input_id].unique(),
+                        data[system_id].unique(),
+                    )
+                )
+                .reshape(2, len(data[input_id].unique()) * len(data[system_id].unique()))
+                .T
             )
 
-            # factors specifies names of system_identifier, i.e. Baseline, or Algorithm1
-            differentMeans_model.fit(
-                factors={system_id: list(data[system_id].unique())},
-                REML=False,
-                summarize=False,
+            grid = pd.DataFrame(grid, columns=[input_id, system_id])
+            betas = diffModelFit.fe_params
+            print(betas)
+            mat = dmatrix("C(acquisition)", grid, return_type="matrix")
+            print(mat)
+            emmeans = grid
+            emmeans["means"] = mat @ betas
+            print(emmeans)
+
+            # grid=data
+            predicted_values = diffModelFit.predict(grid)
+            print(pd.DataFrame(predicted_values, columns=["lol"])["lol"].unique())
+
+            # Perform Tukey's HSD test
+            tukey_results = MultiComparison(predicted_values, grid[system_id]).tukeyhsd(
+                alpha=0.05
             )
+
+            # calculate the standard deviation for each pair of groups
+            print(tukey_results.std_pairs)
+            print(tukey_results.summary())
+            print("tukey end")
 
             # "Common"-Model assumes no significant difference, which is why the system-identifier is not included
             commonMean_model = Lmer(formula=f"{metric}~ (1 | {input_id})", data=data)
@@ -137,7 +179,15 @@ def conduct_analysis(
                 )
 
             # Post hoc divides the "different"-Model into its three systems
-            post_hoc_results = differentMeans_model.post_hoc(marginal_vars=[system_id])
+            post_hoc_results = sm.stats.MultiComparison(
+                data[metric],
+                data[system_id],
+            )
+            # Perform the Tukey post hoc analysis
+            post_hoc_results = post_hoc_results.tukeyhsd()
+
+            # Print the results
+            print(post_hoc_results.summary())
             contrasts = post_hoc_results[1]
             for pair in contrasts["Contrast"]:
                 contrasts.loc[
@@ -354,3 +404,12 @@ def conduct_analysis(
                 plt.show()
 
             return result_GLRT_ex_ni, post_hoc_results
+
+
+if __name__ == "__main__":
+
+    # Load example dataset
+    data = pd.read_csv("./significance_analysis_example/example_dataset.csv")
+
+    # First Analysis: Analyse performance of acquisition functions over all benchmarks and trainingrounds
+    conduct_analysis(data, "mean", "acquisition", "benchmark", show_plots=False)
