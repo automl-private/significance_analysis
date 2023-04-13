@@ -135,11 +135,19 @@ def conduct_analysis(
 
             grid = pd.DataFrame(grid, columns=[input_id, system_id])
             betas = diffModelFit.fe_params
-            print(betas)
+            # print(betas)
             mat = dmatrix("C(acquisition)", grid, return_type="matrix")
-            print(mat)
+            # print(mat)
             emmeans = grid
             emmeans["means"] = mat @ betas
+            print(emmeans)
+            vcov = diffModelFit.cov_params()
+            # print(vcov)
+
+            vcov = vcov[~vcov.index.str.contains("Var|Cor")]
+            vcov = vcov.loc[:, ~vcov.columns.str.contains("Var|Cor")]
+            print(vcov)
+            emmeans["SE"] = np.sqrt(np.diagonal(mat @ vcov) @ mat.T)
             print(emmeans)
 
             # grid=data
