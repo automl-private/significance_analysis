@@ -295,13 +295,7 @@ def conduct_analysis(
                 column = contrasts.pop(system_id + "_1")
                 contrasts.insert(0, system_id + "_1", column)
                 if summarize:
-                    print(
-                        contrasts[
-                            (contrasts["Sig"] == "***")
-                            | (contrasts["Sig"] == "**")
-                            | (contrasts["Sig"] == "*")
-                        ]
-                    )
+                    print(contrasts[contrasts["Sig"] != ""])
                 best_system_id = (
                     post_hoc_results[0]
                     .query(f"{bin_id}_bins == '{group}'")
