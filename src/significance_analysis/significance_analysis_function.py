@@ -135,13 +135,9 @@ def conduct_analysis(
 
             grid = pd.DataFrame(grid, columns=[input_id, system_id])
             betas = diffModelFit.fe_params
-            # print(betas)
             mat = dmatrix("C(acquisition)", grid, return_type="matrix")
-            # print(mat)
             emmeans = grid
             emmeans["means"] = mat @ betas
-            print("Emmeans result without SE: ")
-            print(emmeans)
             vcov = diffModelFit.cov_params()
             # print(vcov)
 
@@ -151,19 +147,32 @@ def conduct_analysis(
             emmeans["SE"] = np.sqrt(np.diagonal(mat @ vcov) @ mat.T)
             print("Emmeans result with SE: ")
             print(emmeans)
-
+            means_per_system_id = emmeans.loc[
+                emmeans[input_id] == emmeans[input_id].unique()[0]
+            ].drop(input_id, axis=1)
+            print("Only first thing:")
+            print(means_per_system_id)
+            accuracy_points = 46500
+            predictions = np.random.normal(
+                loc=means_per_system_id["means"],
+                scale=means_per_system_id["SE"],
+                size=(accuracy_points, len(emmeans[system_id].unique())),
+            ).T.flatten()
+            systems_list = np.repeat(emmeans[system_id].unique(), accuracy_points)
             # grid=data
             predicted_values = diffModelFit.predict(grid)
-            print("Predicted Values: ", predicted_values)
-            print(pd.DataFrame(predicted_values, columns=["lol"])["lol"].unique())
+            predicted_values = pd.DataFrame(predicted_values, columns=["values"])[
+                "values"
+            ].unique()
 
             # Perform Tukey's HSD test
-            tukey_results = MultiComparison(predicted_values, grid[system_id]).tukeyhsd(
-                alpha=0.05
-            )
-
+            # multicomp=MultiComparison(predicted_values, grid[system_id].unique())
+            multicomp = MultiComparison(predictions, systems_list)
+            tukey_results = multicomp.tukeyhsd(alpha=0.05)
             # calculate the standard deviation for each pair of groups
+            print("Std-pairs :")
             print(tukey_results.std_pairs)
+            print("Summary :")
             print(tukey_results.summary())
             print("tukey end")
 
