@@ -1,7 +1,4 @@
-.vscode/
 __pycache__/
-.venv/
+.*/
 poetry.lock
 dist/
-dataset_firstRun/
-dataset_secondRun/

@@ -97,6 +97,7 @@ def conduct_analysis(
                     labels=data[system_id].unique(),
                 )
                 plt.yscale("log")
+                plt.xticks(rotation=-45, ha="right")
                 plt.show()
 
             # System-identifier: system_id
