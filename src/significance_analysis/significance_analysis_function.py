@@ -140,18 +140,21 @@ def conduct_analysis(
             # print(mat)
             emmeans = grid
             emmeans["means"] = mat @ betas
+            print("Emmeans result without SE: ")
             print(emmeans)
             vcov = diffModelFit.cov_params()
             # print(vcov)
 
             vcov = vcov[~vcov.index.str.contains("Var|Cor")]
             vcov = vcov.loc[:, ~vcov.columns.str.contains("Var|Cor")]
-            print(vcov)
+            print(vcov[["Intercept", "acquisition[T.ProbabilityOfImprovement]"]])
             emmeans["SE"] = np.sqrt(np.diagonal(mat @ vcov) @ mat.T)
+            print("Emmeans result with SE: ")
             print(emmeans)
 
             # grid=data
             predicted_values = diffModelFit.predict(grid)
+            print("Predicted Values: ", predicted_values)
             print(pd.DataFrame(predicted_values, columns=["lol"])["lol"].unique())
 
             # Perform Tukey's HSD test
