@@ -104,6 +104,7 @@ def conduct_analysis(
             # Input-Identifier: input_id
             # Two models, "different"-Model assumes significant difference between performance of groups, divided by system-identifier
             # Formula has form: "metric ~ system_id + (1 | input_id)"
+            """
             differentMeans_model = Lmer(
                 formula=f"{metric}~{system_id}+(1|{input_id})", data=data
             )
@@ -113,7 +114,18 @@ def conduct_analysis(
                 factors={system_id: list(data[system_id].unique())},
                 REML=False,
                 summarize=False,
+            )"""
+            import statsmodels.formula.api as smf
+            from statsmodels.stats.multicomp import pairwise_tukeyhsd
+
+            differentMeans_model = smf.ols(
+                formula=f"{metric}~{system_id}+(1|{input_id})", data=data
             )
+            results = differentMeans_model.fit()
+            print(results)
+            # column_index = results.index.get_loc(system_id)
+            post_hoc_results = pairwise_tukeyhsd(results.resid, data[system_id])
+            print(post_hoc_results)
 
             # "Common"-Model assumes no significant difference, which is why the system-identifier is not included
             commonMean_model = Lmer(formula=f"{metric}~ (1 | {input_id})", data=data)
@@ -349,3 +361,13 @@ def conduct_analysis(
                 plt.show()
 
             return result_GLRT_ex_ni, post_hoc_results
+
+
+if __name__ == "__main__":
+
+    # Load example dataset
+    data = pd.read_csv("./significance_analysis_example/example_dataset.csv")
+    data["benchmark"] = pd.factorize(data["benchmark"])[0]
+
+    # First Analysis: Analyse performance of acquisition functions over all benchmarks and trainingrounds
+    conduct_analysis(data, "mean", "acquisition", "benchmark", show_plots=False)
