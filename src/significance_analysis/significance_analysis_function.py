@@ -17,7 +17,10 @@ def conduct_analysis(
     subset: typing.Tuple[str, typing.Union[str, list[str], list[list[str]]]] = None,
     show_plots: bool = True,
     summarize: bool = True,
-) -> typing.Tuple[dict[str, any], typing.Tuple[any, pd.DataFrame]]:
+) -> typing.Union[
+    typing.Tuple[dict[str, any], typing.Tuple[any, pd.DataFrame]],
+    typing.Dict[str, typing.Tuple[dict[str, any], typing.Tuple[any, pd.DataFrame]]],
+]:
     """LMER-Based Performance Analysis
 
     Args:
@@ -42,6 +45,7 @@ def conduct_analysis(
     """
 
     if subset is not None:
+        result_dict = {}
         if isinstance(subset[1], str):
             if subset[1] in ["all", "a", "All", "A"]:
                 subset_list = list(data[subset[0]].unique())
@@ -57,7 +61,7 @@ def conduct_analysis(
                 raise SystemExit(
                     f"A Subset-Value of {subset_item} is not in Dataset. Choose from {data[subset[0]].unique()}"
                 )
-            conduct_analysis(
+            result_dict[subset_item[0]] = conduct_analysis(
                 data.loc[data[subset[0]].isin(subset_item)],
                 metric,
                 system_id,
@@ -68,6 +72,7 @@ def conduct_analysis(
                 show_plots=show_plots,
                 summarize=summarize,
             )
+        return result_dict
     else:
 
         def GLRT(mod1, mod2):
@@ -294,9 +299,7 @@ def conduct_analysis(
                 column = contrasts.pop(system_id + "_1")
                 contrasts.insert(0, system_id + "_1", column)
                 if summarize:
-                    print(
-                        contrasts[contrasts["Sig"]!=""]
-                    )
+                    print(contrasts[contrasts["Sig"] != ""])
                 best_system_id = (
                     post_hoc_results[0]
                     .query(f"{bin_id}_bins == '{group}'")
