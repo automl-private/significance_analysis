@@ -1,6 +1,8 @@
 import typing
 
+import autorank
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import scipy.stats as stats
 from pymer4.models import Lmer
@@ -186,6 +188,24 @@ def conduct_analysis(
                     f"The best performing {system_id} is {best_system_id}, all other perform significantly worse.\n"
                 )
 
+            #
+
+            artificial_data = pd.DataFrame()
+            for sys_id in post_hoc_results[0][system_id]:
+                artificial_data[sys_id] = np.random.normal(
+                    post_hoc_results[0].loc[post_hoc_results[0][system_id] == sys_id][
+                        "Estimate"
+                    ],
+                    post_hoc_results[0].loc[post_hoc_results[0][system_id] == sys_id][
+                        "SE"
+                    ],
+                    500,
+                )
+            # print(artificial_data)
+            autorank_res = autorank.autorank(artificial_data, verbose=True)
+            autorank.plot_stats(autorank_res, allow_insignificant=True)
+            print(autorank_res)
+
             return result_GLRT_dM_cM, post_hoc_results
 
         else:
@@ -294,9 +314,7 @@ def conduct_analysis(
                 column = contrasts.pop(system_id + "_1")
                 contrasts.insert(0, system_id + "_1", column)
                 if summarize:
-                    print(
-                        contrasts[contrasts["Sig"]!=""]
-                    )
+                    print(contrasts[contrasts["Sig"] != ""])
                 best_system_id = (
                     post_hoc_results[0]
                     .query(f"{bin_id}_bins == '{group}'")
