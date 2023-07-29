@@ -17,6 +17,7 @@ def conduct_analysis(
     subset: typing.Tuple[str, typing.Union[str, list[str], list[list[str]]]] = None,
     show_plots: bool = True,
     summarize: bool = True,
+    show_contrasts: bool = True,
 ) -> typing.Tuple[dict[str, any], typing.Tuple[any, pd.DataFrame]]:
     """LMER-Based Performance Analysis
 
@@ -31,6 +32,7 @@ def conduct_analysis(
         subset (typing.Tuple[str, typing.Union[str, list[str], list[list[str]]]], optional): Subset of dataset that should be used for analysis. First entry of tuple is name of variable that defines subset. Second entry is either list of entries that should be analysed iteratively (single entries or groups), or "all"/"a" for all entries. Defaults to None.
         show_plots (bool, optional): Show plots. First entry is boxplot comparing systems, second entry is graph showing systems in all bins. Defaults to True.
         summarize (bool, optional): Print results while analysing. Defaults to True.
+        show_contrasts (bool, optional): Develop contrasts between systems
 
     Raises:
         SystemExit: If Subset-Value is not in Dataset.
@@ -49,6 +51,7 @@ def conduct_analysis(
                 subset_list = [subset[1]]
         else:
             subset_list = subset[1]
+        return_dict = {}
         for subset_item in subset_list:
             print(f"Analysis for {subset_item}")
             if isinstance(subset_item, str):
@@ -57,7 +60,7 @@ def conduct_analysis(
                 raise SystemExit(
                     f"A Subset-Value of {subset_item} is not in Dataset. Choose from {data[subset[0]].unique()}"
                 )
-            conduct_analysis(
+            return_dict[" ".join(subset_item)] = conduct_analysis(
                 data.loc[data[subset[0]].isin(subset_item)],
                 metric,
                 system_id,
@@ -67,7 +70,9 @@ def conduct_analysis(
                 bin_labels=bin_labels,
                 show_plots=show_plots,
                 summarize=summarize,
+                show_contrasts=show_contrasts,
             )
+        return return_dict
     else:
 
         def GLRT(mod1, mod2):
@@ -157,7 +162,8 @@ def conduct_analysis(
                 # [0] shows group-means, i.e. performance of the single system-groups
                 print(post_hoc_results[0])  # cell (group) means
                 # [1] shows the pairwise comparisons, i.e. improvements over each other, with p-value
-                print(contrasts)  # contrasts (group differences)
+                if show_contrasts:
+                    print(contrasts)  # contrasts (group differences)
 
             best_system_id = post_hoc_results[0].loc[
                 post_hoc_results[0]["Estimate"].idxmin()
@@ -187,7 +193,10 @@ def conduct_analysis(
                     f"The best performing {system_id} is {best_system_id}, all other perform significantly worse.\n"
                 )
 
-            return result_GLRT_dM_cM, post_hoc_results
+            if show_contrasts:
+                return result_GLRT_dM_cM, post_hoc_results
+            else:
+                return result_GLRT_dM_cM
 
         else:
             if bins is None:
@@ -278,74 +287,78 @@ def conduct_analysis(
             if summarize:
                 # Means of each combination
                 print(post_hoc_results[0])
-            # Comparisons for each combination
-            for group in data[f"{bin_id}_bins"].unique():
-                contrasts = post_hoc_results[1].query(f"{bin_id}_bins == '{group}'")
+            if show_contrasts:
+                # Comparisons for each combination
+                for group in data[f"{bin_id}_bins"].unique():
+                    contrasts = post_hoc_results[1].query(f"{bin_id}_bins == '{group}'")
 
-                for pair in contrasts["Contrast"]:
-                    contrasts.loc[
-                        contrasts["Contrast"] == pair, system_id + "_1"
-                    ] = pair.split(" - ")[0]
-                    contrasts.loc[
-                        contrasts["Contrast"] == pair, system_id + "_2"
-                    ] = pair.split(" - ")[1]
-                contrasts = contrasts.drop("Contrast", axis=1)
-                column = contrasts.pop(system_id + "_2")
-                contrasts.insert(0, system_id + "_2", column)
-                column = contrasts.pop(system_id + "_1")
-                contrasts.insert(0, system_id + "_1", column)
-                if summarize:
-                    print(contrasts[contrasts["Sig"] != ""])
-                best_system_id = (
-                    post_hoc_results[0]
-                    .query(f"{bin_id}_bins == '{group}'")
-                    .loc[
+                    for pair in contrasts["Contrast"]:
+                        contrasts.loc[
+                            contrasts["Contrast"] == pair, system_id + "_1"
+                        ] = pair.split(" - ")[0]
+                        contrasts.loc[
+                            contrasts["Contrast"] == pair, system_id + "_2"
+                        ] = pair.split(" - ")[1]
+                    contrasts = contrasts.drop("Contrast", axis=1)
+                    column = contrasts.pop(system_id + "_2")
+                    contrasts.insert(0, system_id + "_2", column)
+                    column = contrasts.pop(system_id + "_1")
+                    contrasts.insert(0, system_id + "_1", column)
+                    if summarize:
+                        print(contrasts[contrasts["Sig"] != ""])
+                    best_system_id = (
                         post_hoc_results[0]
-                        .query(f"{bin_id}_bins == '{group}'")["Estimate"]
-                        .idxmin()
-                    ][system_id]
-                )
-                contenders = []
-                for _, row in contrasts.iterrows():
-                    if row[system_id + "_1"] == best_system_id and not row["Sig"] in [
-                        "*",
-                        "**",
-                        "***",
-                    ]:
-                        contenders.append(row[system_id + "_2"])
-                    if row[system_id + "_2"] == best_system_id and not row["Sig"] in [
-                        "*",
-                        "**",
-                        "***",
-                    ]:
-                        contenders.append(row[system_id + "_1"])
-
-                if contenders:
-                    print(
-                        f"The best performing {system_id} in {bin_id}-class {group} is {best_system_id}, but {contenders} are only insignificantly worse.\n"
+                        .query(f"{bin_id}_bins == '{group}'")
+                        .loc[
+                            post_hoc_results[0]
+                            .query(f"{bin_id}_bins == '{group}'")["Estimate"]
+                            .idxmin()
+                        ][system_id]
                     )
-                else:
-                    print(
-                        f"The best performing {system_id} in {bin_id}-class {group} is {best_system_id}, all other perform significantly worse.\n"
-                    )
+                    contenders = []
+                    for _, row in contrasts.iterrows():
+                        if row[system_id + "_1"] == best_system_id and not row["Sig"] in [
+                            "*",
+                            "**",
+                            "***",
+                        ]:
+                            contenders.append(row[system_id + "_2"])
+                        if row[system_id + "_2"] == best_system_id and not row["Sig"] in [
+                            "*",
+                            "**",
+                            "***",
+                        ]:
+                            contenders.append(row[system_id + "_1"])
 
-            if show_plots:
-                _, ax = plt.subplots(figsize=(10, 6))
-                for sys_id, group in post_hoc_results[0].groupby(system_id):
-                    ax.errorbar(
-                        group[f"{bin_id}_bins"],
-                        group["Estimate"],
-                        yerr=group["SE"],
-                        fmt="o-",
-                        capsize=3,
-                        label=sys_id,
-                        lolims=group["2.5_ci"],
-                        uplims=group["97.5_ci"],
-                    )
-                ax.set_xlabel(bin_id)
-                ax.set_ylabel("Estimate")
-                ax.set_title(f"Estimates by {system_id} and {bin_id}")
-                ax.legend()
-                plt.show()
+                    if contenders:
+                        print(
+                            f"The best performing {system_id} in {bin_id}-class {group} is {best_system_id}, but {contenders} are only insignificantly worse.\n"
+                        )
+                    else:
+                        print(
+                            f"The best performing {system_id} in {bin_id}-class {group} is {best_system_id}, all other perform significantly worse.\n"
+                        )
 
-            return result_GLRT_ex_ni, post_hoc_results
+                if show_plots:
+                    _, ax = plt.subplots(figsize=(10, 6))
+                    for sys_id, group in post_hoc_results[0].groupby(system_id):
+                        ax.errorbar(
+                            group[f"{bin_id}_bins"],
+                            group["Estimate"],
+                            yerr=group["SE"],
+                            fmt="o-",
+                            capsize=3,
+                            label=sys_id,
+                            lolims=group["2.5_ci"],
+                            uplims=group["97.5_ci"],
+                        )
+                    ax.set_xlabel(bin_id)
+                    ax.set_ylabel("Estimate")
+                    ax.set_title(f"Estimates by {system_id} and {bin_id}")
+                    ax.legend()
+                    plt.show()
+
+            if show_contrasts:
+                return result_GLRT_ex_ni, post_hoc_results
+            else:
+                return result_GLRT_ex_ni
