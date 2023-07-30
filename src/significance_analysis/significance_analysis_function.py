@@ -14,7 +14,10 @@ def conduct_analysis(
     bin_id: str = None,
     bins: typing.Union[list[list[str]], list[float]] = None,
     bin_labels: list[str] = None,
-    subset: typing.Tuple[str, typing.Union[str, list[str], list[list[str]]]] = None,
+    subset: typing.Union[
+        str,
+        typing.Tuple[str, typing.Union[dict[str, any], str, list[str], list[list[str]]]],
+    ] = None,
     show_plots: bool = True,
     summarize: bool = True,
     show_contrasts: bool = True,
@@ -44,8 +47,19 @@ def conduct_analysis(
     """
 
     if subset is not None:
-        if isinstance(subset[1], str):
-            if subset[1] in ["all", "a", "All", "A"]:
+        if isinstance(subset, str):
+            subset = (subset, "a")
+        if isinstance(subset[1], str) or isinstance(subset[1], dict):
+            if isinstance(subset[1], dict):
+                new_dict = {}
+                for key, value in subset[1].items():
+                    if value not in new_dict:
+                        new_dict[value] = [key]
+                    else:
+                        if value in new_dict:
+                            new_dict[value].append(key)
+                subset_list = list(new_dict.values())
+            elif subset[1] in ["all", "a", "All", "A"]:
                 subset_list = list(data[subset[0]].unique())
             else:
                 subset_list = [subset[1]]
