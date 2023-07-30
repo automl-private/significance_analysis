@@ -32,7 +32,7 @@ def conduct_analysis(
         bin_id (str, optional): Column name of bin (e.g. Budget). Defaults to None.
         bins (typing.Union[list[list[str]], list[float]], optional): Specified bins: If None, bins for every unique value are used. If list of float, numeric variable gets binned into intervals according to list. If list of list of str, variable gets binned into bins according to sublists. Defaults to None.
         bin_labels (list[str], optional): Labels for bins. If None, bins are named after content/interval borders. If list of str, bins are named according to list. Defaults to None.
-        subset (typing.Tuple[str, typing.Union[str, list[str], list[list[str]]]], optional): Subset of dataset that should be used for analysis. First entry of tuple is name of variable that defines subset. Second entry is either list of entries that should be analysed iteratively (single entries or groups), or "all"/"a" for all entries. Defaults to None.
+        subset (typing.Union[str,typing.Tuple[str, typing.Union[dict[str, any], str, list[str], list[list[str]]]]], optional): Subset of dataset that should be used for analysis. Only name of variable that defines subset to create subgroup for each entry or: First entry of tuple is name of variable, second entry is either list of entries that should be analysed iteratively (single entries or groups), or "all"/"a" for all entries. Defaults to None.
         show_plots (bool, optional): Show plots. First entry is boxplot comparing systems, second entry is graph showing systems in all bins. Defaults to True.
         summarize (bool, optional): Print results while analysing. Defaults to True.
         show_contrasts (bool, optional): Develop contrasts between systems
