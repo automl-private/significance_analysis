@@ -7,7 +7,7 @@ from pymer4.models import Lmer
 from scipy import stats
 
 
-def glrt(mod1: Lmer, mod2: Lmer) -> dict(str, any):
+def glrt(mod1: Lmer, mod2: Lmer) -> dict[str, typing.Any]:
     """Generalized Likelihood Ratio Test on two Liner Mixed Effect Models from R
 
     Args:
@@ -15,8 +15,9 @@ def glrt(mod1: Lmer, mod2: Lmer) -> dict(str, any):
         mod2 (Lmer): Second model, Alternative Hypothesis assumes that this model contains significant new information
 
     Returns:
-        dict(str,any): Result dictionary with Chi-Square-Score, Degrees of Freedom and p-value of the test
+        dict[str,typing.Any]: Result dictionary with Chi-Square-Score, Degrees of Freedom and p-value of the test
     """
+    assert mod1.logLike and mod2.logLike and mod1.coefs and mod2.coefs
     chi_square = 2 * abs(mod1.logLike - mod2.logLike)
     delta_params = abs(len(mod1.coefs) - len(mod2.coefs))
     return {
@@ -31,18 +32,38 @@ def conduct_analysis(
     metric: str,
     system_id: str,
     input_id: str,
-    bin_id: str = None,
-    bins: typing.Union[list[list[str]], list[float]] = None,
-    bin_labels: list[str] = None,
-    subset: typing.Union[
-        str,
-        typing.Tuple[str, typing.Union[dict[str, any], str, list[str], list[list[str]]]],
+    bin_id: typing.Optional[str] = None,
+    bins: typing.Optional[typing.Union[list[list[str]], list[float]]] = None,
+    bin_labels: typing.Optional[list[str]] = None,
+    subset: typing.Optional[
+        typing.Union[
+            str,
+            typing.Tuple[
+                str, typing.Union[dict[str, typing.Any], str, list[str], list[list[str]]]
+            ],
+        ]
     ] = None,
     show_plots: bool = True,
     summarize: bool = True,
     show_contrasts: bool = True,
-) -> typing.Tuple[
-    dict[str, any], typing.Union[any, typing.Tuple[any, pd.DataFrame], None], None
+) -> typing.Union[
+    typing.Union[
+        typing.Tuple[
+            dict[str, typing.Any],
+            typing.Union[typing.Any, typing.Tuple[typing.Any, pd.DataFrame]],
+        ],
+        dict[str, typing.Any],
+    ],
+    dict[
+        str,
+        typing.Union[
+            typing.Tuple[
+                dict[str, typing.Any],
+                typing.Union[typing.Any, typing.Tuple[typing.Any, pd.DataFrame]],
+            ],
+            dict[str, typing.Any],
+        ],
+    ],
 ]:
     """LMER-Based Performance Analysis
 
@@ -65,7 +86,7 @@ def conduct_analysis(
         SystemExit: If the number of Labels does not fit the number of categorical Bins.
 
     Returns:
-        typing.Tuple[dict[str, any],typing.Union[any,typing.Tuple[any, pd.DataFrame],None],None]: Result tuple, first the result-dictionary of the GLRT and second the post_hoc-analysis of the LMEM, consisting of first the estimated means for each system and second the contrasts. If a subsets are used, returns dictionary with full results for each subset. If contrasts are turned off, only returns estimated means as second tuple-entry.
+        typing.Union[typing.Union[typing.Tuple[dict[str,typing.Any],typing.Union[typing.Any,typing.Tuple[typing.Any,pd.DataFrame]]],dict[str,typing.Any]],dict[str,typing.Union[typing.Tuple[dict[str,typing.Any],typing.Union[typing.Any,typing.Tuple[typing.Any,pd.DataFrame]]],dict[str,typing.Any]]]]: Result tuple, first the result-dictionary of the GLRT and second the post_hoc-analysis of the LMEM, consisting of first the estimated means for each system and second the contrasts. If a subsets are used, returns dictionary with full results for each subset. If contrasts are turned off, only returns estimated means as second tuple-entry. If post-hoc-analysis failed, only returns GLRT-Results.
     """
 
     if subset is not None:
@@ -96,7 +117,7 @@ def conduct_analysis(
                 raise SystemExit(
                     f"A Subset-Value of {subset_item} is not in Dataset. Choose from {data[subset[0]].unique()}"
                 )
-            return_dict[" ".join(subset_item)] = conduct_analysis(
+            return_dict[" ".join(str(subset_item))] = conduct_analysis(
                 data.loc[data[subset[0]].isin(subset_item)],
                 metric,
                 system_id,
@@ -115,15 +136,15 @@ def conduct_analysis(
     pd.set_option("display.max_columns", 5000)
     pd.set_option("display.width", 10000)
 
-    if bin_id is None:
+    if not bin_id:
         if len(data[input_id].unique()) == 1:
             data.loc[data.sample(1).index, input_id] = data[input_id].unique()[0] + "_d"
 
         if show_plots:
-            _, ax = plt.subplots()
-            ax.boxplot(
+            _, axis = plt.subplots()
+            axis.boxplot(
                 [group[metric] for _, group in data.groupby(system_id)],
-                labels=data[system_id].unique(),
+                labels=list(data[system_id].unique()),
             )
             plt.yscale("log")
             plt.xticks(rotation=-45, ha="right")
@@ -133,27 +154,27 @@ def conduct_analysis(
         # Input-Identifier: input_id
         # Two models, "different"-Model assumes significant difference between performance of groups, divided by system-identifier
         # Formula has form: "metric ~ system_id + (1 | input_id)"
-        differentMeans_model = Lmer(
+        different_means_model = Lmer(
             formula=f"{metric}~{system_id}+(1|{input_id})", data=data
         )
 
         # factors specifies names of system_identifier, i.e. Baseline, or Algorithm1
-        differentMeans_model.fit(
+        different_means_model.fit(
             factors={system_id: list(data[system_id].unique())},
             REML=False,
             summarize=False,
         )
 
         # "Common"-Model assumes no significant difference, which is why the system-identifier is not included
-        commonMean_model = Lmer(formula=f"{metric}~ (1 | {input_id})", data=data)
-        commonMean_model.fit(REML=False, summarize=False)
+        common_mean_model = Lmer(formula=f"{metric}~ (1 | {input_id})", data=data)
+        common_mean_model.fit(REML=False, summarize=False)
 
         # Signficant p-value shows, that different-Model fits data sign. better, i.e.
         # There is signficant difference in system-identifier
-        result_GLRT_dM_cM = glrt(differentMeans_model, commonMean_model)
-        p_value = result_GLRT_dM_cM["p"]
+        result_glrt_dm_cm = glrt(different_means_model, common_mean_model)
+        p_value = result_glrt_dm_cm["p"]
         print(f"P-value: {p_value}")
-        if result_GLRT_dM_cM["p"] < 0.05:
+        if result_glrt_dm_cm["p"] < 0.05:
             print(
                 f"\nAs the p-value {p_value} is smaller than 0.05, we can reject the Null-Hypothesis that the model "
                 f"that does not consider the {system_id} describes the data as well as the one that does. Therefore "
@@ -167,143 +188,144 @@ def conduct_analysis(
             )
 
         # Post hoc divides the "different"-Model into its three systems
-        post_hoc_results = differentMeans_model.post_hoc(marginal_vars=[system_id])
-        contrasts = post_hoc_results[1]
-        for pair in contrasts["Contrast"]:
-            contrasts.loc[contrasts["Contrast"] == pair, system_id + "_1"] = pair.split(
-                " - "
-            )[0]
-            contrasts.loc[contrasts["Contrast"] == pair, system_id + "_2"] = pair.split(
-                " - "
-            )[1]
-        contrasts = contrasts.drop("Contrast", axis=1)
-        column = contrasts.pop(system_id + "_2")
-        contrasts.insert(0, system_id + "_2", column)
-        column = contrasts.pop(system_id + "_1")
-        contrasts.insert(0, system_id + "_1", column)
+        post_hoc_results = different_means_model.post_hoc(marginal_vars=[system_id])
+        if post_hoc_results:
+            contrasts = post_hoc_results[1]
+            for pair in contrasts["Contrast"]:
+                contrasts.loc[
+                    contrasts["Contrast"] == pair, system_id + "_1"
+                ] = pair.split(" - ")[0]
+                contrasts.loc[
+                    contrasts["Contrast"] == pair, system_id + "_2"
+                ] = pair.split(" - ")[1]
+            contrasts = contrasts.drop("Contrast", axis=1)
+            column = contrasts.pop(system_id + "_2")
+            contrasts.insert(0, system_id + "_2", column)
+            column = contrasts.pop(system_id + "_1")
+            contrasts.insert(0, system_id + "_1", column)
 
-        if summarize:
-            # [0] shows group-means, i.e. performance of the single system-groups
-            print(post_hoc_results[0])  # cell (group) means
-            # [1] shows the pairwise comparisons, i.e. improvements over each other, with p-value
-            if show_contrasts:
-                print(contrasts)  # contrasts (group differences)
+            if summarize:
+                # [0] shows group-means, i.e. performance of the single system-groups
+                print(post_hoc_results[0])  # cell (group) means
+                # [1] shows the pairwise comparisons, i.e. improvements over each other, with p-value
+                if show_contrasts:
+                    print(contrasts)  # contrasts (group differences)
 
-        best_system_id = post_hoc_results[0].loc[
-            post_hoc_results[0]["Estimate"].idxmin()
-        ][system_id]
+            best_system_id = post_hoc_results[0].loc[
+                post_hoc_results[0]["Estimate"].idxmin()
+            ][system_id]
 
-        contenders = []
-        for _, row in contrasts.iterrows():
-            if row[system_id + "_1"] == best_system_id and not row["Sig"] in [
-                "*",
-                "**",
-                "***",
-            ]:
-                contenders.append(row[system_id + "_2"])
-            if row[system_id + "_2"] == best_system_id and not row["Sig"] in [
-                "*",
-                "**",
-                "***",
-            ]:
-                contenders.append(row[system_id + "_1"])
+            contenders = []
+            for _, row in contrasts.iterrows():
+                if row[system_id + "_1"] == best_system_id and not row["Sig"] in [
+                    "*",
+                    "**",
+                    "***",
+                ]:
+                    contenders.append(row[system_id + "_2"])
+                if row[system_id + "_2"] == best_system_id and not row["Sig"] in [
+                    "*",
+                    "**",
+                    "***",
+                ]:
+                    contenders.append(row[system_id + "_1"])
 
-        if contenders:
-            print(
-                f"The best performing {system_id} is {best_system_id}, but {contenders} are only insignificantly worse.\n"
-            )
-        else:
-            print(
-                f"The best performing {system_id} is {best_system_id}, all other perform significantly worse.\n"
-            )
-
-        if show_contrasts:
-            return result_GLRT_dM_cM, post_hoc_results
-        else:
-            return result_GLRT_dM_cM, post_hoc_results[0]
-
-    else:
-        if bins is None:
-            data[f"{bin_id}_bins"] = data[bin_id]
-        else:
-            if isinstance(bins, list) and all(
-                isinstance(bin, (float, int)) for bin in bins
-            ):
-                bins_set = set(bins)
-                bins_set.add(data[bin_id].min())
-                bins_set.add(data[bin_id].max())
-                bins = sorted(list(bins_set))
-                if bin_labels is None:
-                    bin_labels = [f"{bins[i]}_{bins[i+1]}" for i in range(len(bins) - 1)]
-                else:
-                    if len(bin_labels) != len(bins) + 1:
-                        raise SystemExit(
-                            f"Too many or too few labels ({len(bin_labels)} labels and {len(bins)} bins)"
-                        )
-                data[f"{bin_id}_bins"] = pd.cut(
-                    data[bin_id], bins=bins, labels=bin_labels, include_lowest=True
+            if contenders:
+                print(
+                    f"The best performing {system_id} is {best_system_id}, but {contenders} are only insignificantly worse.\n"
                 )
             else:
-                if bin_labels is not None:
-                    if len(bin_labels) != len(bins):
-                        raise SystemExit(
-                            f"Too many or too few labels ({len(bin_labels)} labels and {len(bins)} bins)"
-                        )
-                    data[f"{bin_id}_bins"] = data[bin_id].apply(
-                        lambda x: bin_labels[bins.index([s for s in bins if x in s][0])]
-                    )
-                else:
-                    data[f"{bin_id}_bins"] = data[bin_id].apply(
-                        lambda x: "_".join([s for s in bins if x in s][0])
-                    )
+                print(
+                    f"The best performing {system_id} is {best_system_id}, all other perform significantly worse.\n"
+                )
 
-        # New model "expanded": Divides into system AND bin-classes (Term system:bin_id allows for Cartesian Product, i.e. different Mean for each system and bin-class)
-        model_expanded = Lmer(
-            f"{metric} ~  {system_id} + {bin_id}_bins + {system_id}:{bin_id}_bins + (1 | {input_id})",
-            data=data,
-        )
-        model_expanded.fit(
-            factors={
-                system_id: list(data[system_id].unique()),
-                f"{bin_id}_bins": list(data[f"{bin_id}_bins"].unique()),
-            },
-            REML=False,
-            summarize=False,
-        )
-        # Second model "nointeraction" lacks system:src-Term to hypothesise no interaction, i.e. no difference when changing bin-class
-        model_nointeraction = Lmer(
-            f"{metric} ~ {system_id} + {bin_id}_bins + (1 | {input_id})",
-            data=data,
-        )
-        model_nointeraction.fit(
-            factors={
-                system_id: list(data[system_id].unique()),
-                f"{bin_id}_bins": list(data[f"{bin_id}_bins"].unique()),
-            },
-            REML=False,
-            summarize=False,
-        )
+            if show_contrasts:
+                return result_glrt_dm_cm, post_hoc_results
+            return result_glrt_dm_cm, post_hoc_results[0]
+        return result_glrt_dm_cm
 
-        # If it's significant, look at if different systems perform better at different bin-classes
-        result_GLRT_ex_ni = glrt(model_expanded, model_nointeraction)
-        p_value = result_GLRT_ex_ni["p"]
-        print(f"P-value: {p_value}")
-        if p_value < 0.05:
-            print(
-                f"\nAs the p-value {p_value} is smaller than 0.05, we can reject the Null-Hypothesis that the model "
-                f"that does not consider the {system_id} and the {bin_id} describes the data as well as the one that does. Therefore "
-                f"there is significant difference within {system_id} and the {bin_id}.\n"
+    if not bins:
+        data[f"{bin_id}_bins"] = data[bin_id]
+    else:
+        if isinstance(bins, list) and all(isinstance(bin, (float, int)) for bin in bins):
+            bins_set = set(bins)
+            bins_set.add(data[bin_id].min())
+            bins_set.add(data[bin_id].max())
+            gen_bins = sorted(list(bins_set))
+            if bin_labels is None:
+                bin_labels = [
+                    f"{gen_bins[i]}_{gen_bins[i+1]}" for i in range(len(gen_bins) - 1)
+                ]
+            else:
+                if len(bin_labels) != len(bins) + 1:
+                    raise SystemExit(
+                        f"Too many or too few labels ({len(bin_labels)} labels and {len(gen_bins)} bins)"
+                    )
+            data[f"{bin_id}_bins"] = pd.cut(
+                data[bin_id], bins=gen_bins, labels=bin_labels, include_lowest=True
             )
         else:
-            print(
-                f"\nAs the p-value {p_value} is not smaller than 0.05, we cannot reject the Null-Hypothesis that the model "
-                f"that does not consider the {system_id} and the {bin_id} describes the data as well as the one that does. Therefore "
-                f"there is no significant difference within {system_id} and {bin_id}\n."
-            )
+            if bin_labels:
+                if len(bin_labels) != len(bins):
+                    raise SystemExit(
+                        f"Too many or too few labels ({len(bin_labels)} labels and {len(bins)} bins)"
+                    )
+                data[f"{bin_id}_bins"] = data[bin_id].apply(
+                    lambda x: bin_labels[bins.index([s for s in bins if x in s][0])]
+                )
+            else:
+                data[f"{bin_id}_bins"] = data[bin_id].apply(
+                    lambda x: "_".join([s for s in bins if x in s][0])
+                )
 
-        post_hoc_results = model_expanded.post_hoc(
-            marginal_vars=system_id, grouping_vars=f"{bin_id}_bins"
+    # New model "expanded": Divides into system AND bin-classes (Term system:bin_id allows for Cartesian Product, i.e. different Mean for each system and bin-class)
+    model_expanded = Lmer(
+        f"{metric} ~  {system_id} + {bin_id}_bins + {system_id}:{bin_id}_bins + (1 | {input_id})",
+        data=data,
+    )
+    model_expanded.fit(
+        factors={
+            system_id: list(data[system_id].unique()),
+            f"{bin_id}_bins": list(data[f"{bin_id}_bins"].unique()),
+        },
+        REML=False,
+        summarize=False,
+    )
+    # Second model "nointeraction" lacks system:src-Term to hypothesise no interaction, i.e. no difference when changing bin-class
+    model_nointeraction = Lmer(
+        f"{metric} ~ {system_id} + {bin_id}_bins + (1 | {input_id})",
+        data=data,
+    )
+    model_nointeraction.fit(
+        factors={
+            system_id: list(data[system_id].unique()),
+            f"{bin_id}_bins": list(data[f"{bin_id}_bins"].unique()),
+        },
+        REML=False,
+        summarize=False,
+    )
+
+    # If it's significant, look at if different systems perform better at different bin-classes
+    result_glrt_ex_ni = glrt(model_expanded, model_nointeraction)
+    p_value = result_glrt_ex_ni["p"]
+    print(f"P-value: {p_value}")
+    if p_value < 0.05:
+        print(
+            f"\nAs the p-value {p_value} is smaller than 0.05, we can reject the Null-Hypothesis that the model "
+            f"that does not consider the {system_id} and the {bin_id} describes the data as well as the one that does. Therefore "
+            f"there is significant difference within {system_id} and the {bin_id}.\n"
         )
+    else:
+        print(
+            f"\nAs the p-value {p_value} is not smaller than 0.05, we cannot reject the Null-Hypothesis that the model "
+            f"that does not consider the {system_id} and the {bin_id} describes the data as well as the one that does. Therefore "
+            f"there is no significant difference within {system_id} and {bin_id}\n."
+        )
+
+    post_hoc_results = model_expanded.post_hoc(
+        marginal_vars=system_id, grouping_vars=f"{bin_id}_bins"
+    )
+    if post_hoc_results:
         if summarize:
             # Means of each combination
             print(post_hoc_results[0])
@@ -360,9 +382,9 @@ def conduct_analysis(
                     )
 
             if show_plots:
-                _, ax = plt.subplots(figsize=(10, 6))
+                _, axis = plt.subplots(figsize=(10, 6))
                 for sys_id, group in post_hoc_results[0].groupby(system_id):
-                    ax.errorbar(
+                    axis.errorbar(
                         group[f"{bin_id}_bins"],
                         group["Estimate"],
                         yerr=group["SE"],
@@ -372,12 +394,13 @@ def conduct_analysis(
                         lolims=group["2.5_ci"],
                         uplims=group["97.5_ci"],
                     )
-                ax.set_xlabel(bin_id)
-                ax.set_ylabel("Estimate")
-                ax.set_title(f"Estimates by {system_id} and {bin_id}")
-                ax.legend()
+                axis.set_xlabel(bin_id)
+                axis.set_ylabel("Estimate")
+                axis.set_title(f"Estimates by {system_id} and {bin_id}")
+                axis.legend()
                 plt.show()
 
         if show_contrasts:
-            return result_GLRT_ex_ni, post_hoc_results
-        return result_GLRT_ex_ni, post_hoc_results[0]
+            return result_glrt_ex_ni, post_hoc_results
+        return result_glrt_ex_ni, post_hoc_results[0]
+    return result_glrt_ex_ni
