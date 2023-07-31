@@ -7,6 +7,25 @@ from pymer4.models import Lmer
 from scipy import stats
 
 
+def glrt(mod1: Lmer, mod2: Lmer) -> dict(str, any):
+    """Generalized Likelihood Ratio Test on two Liner Mixed Effect Models from R
+
+    Args:
+        mod1 (Lmer): First, simple model, Null-Hypothesis assumes that this model contains not significantly less information as the second model
+        mod2 (Lmer): Second model, Alternative Hypothesis assumes that this model contains significant new information
+
+    Returns:
+        dict(str,any): Result dictionary with Chi-Square-Score, Degrees of Freedom and p-value of the test
+    """
+    chi_square = 2 * abs(mod1.logLike - mod2.logLike)
+    delta_params = abs(len(mod1.coefs) - len(mod2.coefs))
+    return {
+        "chi_square": chi_square,
+        "df": delta_params,
+        "p": 1 - stats.chi2.cdf(chi_square, df=delta_params),
+    }
+
+
 def conduct_analysis(
     data: pd.DataFrame,
     metric: str,
@@ -22,7 +41,9 @@ def conduct_analysis(
     show_plots: bool = True,
     summarize: bool = True,
     show_contrasts: bool = True,
-) -> typing.Tuple[dict[str, any], typing.Tuple[any, pd.DataFrame]]:
+) -> typing.Tuple[
+    dict[str, any], typing.Union[any, typing.Tuple[any, pd.DataFrame], None], None
+]:
     """LMER-Based Performance Analysis
 
     Args:
@@ -44,7 +65,7 @@ def conduct_analysis(
         SystemExit: If the number of Labels does not fit the number of categorical Bins.
 
     Returns:
-        typing.Tuple[dict[str,any],typing.Tuple[any,pd.DataFrame]]: First the result-dictionary of the GLRT and second the post_hoc-analysis of the LMEM.
+        typing.Tuple[dict[str, any],typing.Union[any,typing.Tuple[any, pd.DataFrame],None],None]: Result tuple, first the result-dictionary of the GLRT and second the post_hoc-analysis of the LMEM, consisting of first the estimated means for each system and second the contrasts. If a subsets are used, returns dictionary with full results for each subset. If contrasts are turned off, only returns estimated means as second tuple-entry.
     """
 
     if subset is not None:
@@ -88,15 +109,6 @@ def conduct_analysis(
                 show_contrasts=show_contrasts,
             )
         return return_dict
-
-    def glrt(mod1, mod2):
-        chi_square = 2 * abs(mod1.logLike - mod2.logLike)
-        delta_params = abs(len(mod1.coefs) - len(mod2.coefs))
-        return {
-            "chi_square": chi_square,
-            "df": delta_params,
-            "p": 1 - stats.chi2.cdf(chi_square, df=delta_params),
-        }
 
     pd.options.mode.chained_assignment = None
     pd.set_option("display.max_rows", 5000)
@@ -208,7 +220,7 @@ def conduct_analysis(
         if show_contrasts:
             return result_GLRT_dM_cM, post_hoc_results
         else:
-            return result_GLRT_dM_cM
+            return result_GLRT_dM_cM, post_hoc_results[0]
 
     else:
         if bins is None:
@@ -368,4 +380,4 @@ def conduct_analysis(
 
         if show_contrasts:
             return result_GLRT_ex_ni, post_hoc_results
-        return result_GLRT_ex_ni
+        return result_GLRT_ex_ni, post_hoc_results[0]
