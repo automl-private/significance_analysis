@@ -17,7 +17,12 @@ def glrt(mod1: Lmer, mod2: Lmer) -> dict[str, typing.Any]:
     Returns:
         dict[str,typing.Any]: Result dictionary with Chi-Square-Score, Degrees of Freedom and p-value of the test
     """
-    assert mod1.logLike and mod2.logLike and mod1.coefs and mod2.coefs
+    assert (
+        mod1.logLike
+        and mod2.logLike
+        and mod1.coefs is not None
+        and mod2.coefs is not None
+    )
     chi_square = 2 * abs(mod1.logLike - mod2.logLike)
     delta_params = abs(len(mod1.coefs) - len(mod2.coefs))
     return {
@@ -92,7 +97,7 @@ def conduct_analysis(
     if subset is not None:
         if isinstance(subset, str):
             subset = (subset, "a")
-        if isinstance(subset[1], str) or isinstance(subset[1], dict):
+        if isinstance(subset[1], (str, dict)):
             if isinstance(subset[1], dict):
                 new_dict = {}
                 for key, value in subset[1].items():
@@ -117,7 +122,7 @@ def conduct_analysis(
                 raise SystemExit(
                     f"A Subset-Value of {subset_item} is not in Dataset. Choose from {data[subset[0]].unique()}"
                 )
-            return_dict[" ".join(str(subset_item))] = conduct_analysis(
+            return_dict["__".join(subset_item)] = conduct_analysis(
                 data.loc[data[subset[0]].isin(subset_item)],
                 metric,
                 system_id,
@@ -131,7 +136,7 @@ def conduct_analysis(
             )
         return return_dict
 
-    pd.options.mode.chained_assignment = None
+    pd.set_option("chained_assignment", None)
     pd.set_option("display.max_rows", 5000)
     pd.set_option("display.max_columns", 5000)
     pd.set_option("display.width", 10000)
@@ -251,18 +256,19 @@ def conduct_analysis(
             bins_set = set(bins)
             bins_set.add(data[bin_id].min())
             bins_set.add(data[bin_id].max())
-            gen_bins = sorted(list(bins_set))
+            complete_bins = sorted(list(bins_set))
             if bin_labels is None:
                 bin_labels = [
-                    f"{gen_bins[i]}_{gen_bins[i+1]}" for i in range(len(gen_bins) - 1)
+                    f"{complete_bins[i]}_{complete_bins[i+1]}"
+                    for i in range(len(complete_bins) - 1)
                 ]
             else:
                 if len(bin_labels) != len(bins) + 1:
                     raise SystemExit(
-                        f"Too many or too few labels ({len(bin_labels)} labels and {len(gen_bins)} bins)"
+                        f"Too many or too few labels ({len(bin_labels)} labels and {len(complete_bins)} bins)"
                     )
             data[f"{bin_id}_bins"] = pd.cut(
-                data[bin_id], bins=gen_bins, labels=bin_labels, include_lowest=True
+                data[bin_id], bins=complete_bins, labels=bin_labels, include_lowest=True
             )
         else:
             if bin_labels:
