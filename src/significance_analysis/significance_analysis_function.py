@@ -249,40 +249,65 @@ def conduct_analysis(
             return result_glrt_dm_cm, post_hoc_results[0]
         return result_glrt_dm_cm
 
-    if not bins:
-        data[f"{bin_id}_bins"] = data[bin_id]
-    else:
-        if isinstance(bins, list) and all(isinstance(bin, (float, int)) for bin in bins):
+    if not any(isinstance(element, str) for element in data[bin_id]):
+        if not bins:
+            complete_bins = sorted(list(data[bin_id].unique()))
+            bin_labels = [str(number) for number in complete_bins]
+            complete_bins = complete_bins + [max(complete_bins) + 1]
+        else:
             bins_set = set(bins)
             bins_set.add(data[bin_id].min())
             bins_set.add(data[bin_id].max())
-            complete_bins = sorted(list(bins_set))
+            complete_bins = sorted(list(set(bins_set)))
             if bin_labels is None:
                 bin_labels = [
                     f"{complete_bins[i]}_{complete_bins[i+1]}"
                     for i in range(len(complete_bins) - 1)
                 ]
             else:
+                if any(isinstance(x, (float, int)) for x in bin_labels):
+                    bin_labels = [str(number) for number in bin_labels]
                 if len(bin_labels) != len(bins) + 1:
                     raise SystemExit(
                         f"Too many or too few labels ({len(bin_labels)} labels and {len(complete_bins)} bins)"
                     )
-            data[f"{bin_id}_bins"] = pd.cut(
-                data[bin_id], bins=complete_bins, labels=bin_labels, include_lowest=True
-            )
-        else:
+        data[f"{bin_id}_bins"] = pd.cut(
+            data[bin_id],
+            bins=complete_bins,
+            labels=bin_labels,
+            include_lowest=True,
+            right=False,
+        )
+
+    else:
+        if bins:
+            mapping = {x: index for index, sublist in enumerate(bins) for x in sublist}
+            data[f"{bin_id}_coded"] = data[bin_id].apply(lambda x: mapping[x])
             if bin_labels:
                 if len(bin_labels) != len(bins):
                     raise SystemExit(
                         f"Too many or too few labels ({len(bin_labels)} labels and {len(bins)} bins)"
                     )
-                data[f"{bin_id}_bins"] = data[bin_id].apply(
-                    lambda x: bin_labels[bins.index([s for s in bins if x in s][0])]
-                )
+                bin_labels = [str(number) for number in bin_labels]
             else:
-                data[f"{bin_id}_bins"] = data[bin_id].apply(
-                    lambda x: "_".join([s for s in bins if x in s][0])
-                )
+                bin_labels = list(data[bin_id].unique())
+            data[f"{bin_id}_bins"] = pd.cut(
+                data[f"{bin_id}_coded"],
+                bins=len(bins),
+                labels=bin_labels,
+                include_lowest=True,
+            )
+        else:
+            data[f"{bin_id}_coded"], _ = pd.factorize(data[bin_id])
+            bin_labels = list(data[bin_id].unique())
+            bin_labels = [str(x) for x in bin_labels]
+            data[f"{bin_id}_bins"] = pd.cut(
+                data[f"{bin_id}_coded"],
+                bins=len(list(data[f"{bin_id}_coded"].unique())),
+                labels=bin_labels,
+                include_lowest=True,
+            )
+        data = data.drop(f"{bin_id}_coded", axis=1)
 
     # New model "expanded": Divides into system AND bin-classes (Term system:bin_id allows for Cartesian Product, i.e. different Mean for each system and bin-class)
     model_expanded = Lmer(
