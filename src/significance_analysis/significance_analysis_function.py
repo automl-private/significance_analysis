@@ -362,6 +362,7 @@ def conduct_analysis(
             print(post_hoc_results[0])
         if show_contrasts:
             # Comparisons for each combination
+            contrasts_collection = pd.DataFrame()
             for group in data[f"{bin_id}_bins"].unique():
                 contrasts = post_hoc_results[1].query(f"{bin_id}_bins == '{group}'")
 
@@ -372,11 +373,12 @@ def conduct_analysis(
                     contrasts.loc[
                         contrasts["Contrast"] == pair, system_id + "_2"
                     ] = pair.split(" - ")[1]
-                contrasts = contrasts.drop("Contrast", axis=1)
+                # contrasts = contrasts.drop("Contrast", axis=1)
                 column = contrasts.pop(system_id + "_2")
                 contrasts.insert(0, system_id + "_2", column)
                 column = contrasts.pop(system_id + "_1")
                 contrasts.insert(0, system_id + "_1", column)
+                contrasts_collection = pd.concat([contrasts_collection, contrasts])
                 if summarize:
                     print(contrasts[contrasts["Sig"] != ""])
                 best_system_id = (
@@ -411,10 +413,10 @@ def conduct_analysis(
                     print(
                         f"The best performing {system_id} in {bin_id}-class {group} is {best_system_id}, all other perform significantly worse.\n"
                     )
-
             if show_plots:
                 _, axis = plt.subplots(figsize=(10, 6))
                 for sys_id, group in post_hoc_results[0].groupby(system_id):
+                    print(group)
                     axis.errorbar(
                         group[f"{bin_id}_bins"],
                         group["Estimate"],
@@ -431,27 +433,32 @@ def conduct_analysis(
                 axis.legend()
                 plt.show()
 
+            contrasts_collection_selection = contrasts_collection.loc[
+                (contrasts_collection[f"{system_id}_1"] == "randomSearch")
+                | (contrasts_collection[f"{system_id}_2"] == "randomSearch")
+            ]
             if significance_plot:
-                _, axis = plt.subplots(figsize=(10, 6))
-                # for sys_id, group in post_hoc_results[0].groupby(system_id):
-                axis.errorbar(
-                    contrasts.loc[
-                        contrasts["Contrast"] == contrasts["Contrast"].unique()[0]
-                    ][f"{bin_id}_bins"],
-                    contrasts.loc[
-                        contrasts["Contrast"] == contrasts["Contrast"].unique()[0]
-                    ]["P-val"],
-                    # yerr=group["SE"],
-                    fmt="o-",
-                    capsize=3,
-                    # label=sys_id,
-                    # lolims=group["2.5_ci"],
-                    # uplims=group["97.5_ci"],
+                _, axis2 = plt.subplots(figsize=(10, 6))
+                for contrast_pair, group in contrasts_collection_selection.groupby(
+                    "Contrast", observed=True
+                ):
+                    axis2.errorbar(
+                        group[f"{bin_id}_bins"],
+                        group["P-val"],
+                        fmt="o-",
+                        capsize=3,
+                        label=contrast_pair,
+                    )
+                axis2.set_yscale("symlog", linthresh=0.05)  # , nonpositive='clip')
+                axis2.axhline(y=0.05)
+                axis2.set_xlabel(bin_id)
+                axis2.set_ylabel("Significance contrasted to Random Search")
+                axis2.set_title(f"Estimates by {system_id} and {bin_id}")
+                axis2.legend()
+                plt.ylim(
+                    min(contrasts_collection_selection["P-val"]),
+                    max(contrasts_collection_selection["P-val"]),
                 )
-                axis.set_xlabel(bin_id)
-                axis.set_ylabel("Estimate")
-                axis.set_title(f"Estimates by {system_id} and {bin_id}")
-                axis.legend()
                 plt.show()
 
         if show_contrasts:
