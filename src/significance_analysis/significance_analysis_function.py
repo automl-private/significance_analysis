@@ -51,6 +51,7 @@ def conduct_analysis(
     show_plots: bool = True,
     summarize: bool = True,
     show_contrasts: bool = True,
+    significance_plot: bool = False,
 ) -> typing.Union[
     typing.Union[
         typing.Tuple[
@@ -424,6 +425,29 @@ def conduct_analysis(
                         lolims=group["2.5_ci"],
                         uplims=group["97.5_ci"],
                     )
+                axis.set_xlabel(bin_id)
+                axis.set_ylabel("Estimate")
+                axis.set_title(f"Estimates by {system_id} and {bin_id}")
+                axis.legend()
+                plt.show()
+
+            if significance_plot:
+                _, axis = plt.subplots(figsize=(10, 6))
+                # for sys_id, group in post_hoc_results[0].groupby(system_id):
+                axis.errorbar(
+                    contrasts.loc[
+                        contrasts["Contrast"] == contrasts["Contrast"].unique()[0]
+                    ][f"{bin_id}_bins"],
+                    contrasts.loc[
+                        contrasts["Contrast"] == contrasts["Contrast"].unique()[0]
+                    ]["P-val"],
+                    # yerr=group["SE"],
+                    fmt="o-",
+                    capsize=3,
+                    # label=sys_id,
+                    # lolims=group["2.5_ci"],
+                    # uplims=group["97.5_ci"],
+                )
                 axis.set_xlabel(bin_id)
                 axis.set_ylabel("Estimate")
                 axis.set_title(f"Estimates by {system_id} and {bin_id}")
