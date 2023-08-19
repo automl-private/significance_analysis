@@ -276,7 +276,6 @@ def conduct_analysis(
             bins=complete_bins,
             labels=bin_labels,
             include_lowest=True,
-            right=False,
         )
 
     else:
