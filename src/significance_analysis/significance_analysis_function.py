@@ -452,8 +452,8 @@ def conduct_analysis(
                 axis2.set_yscale("symlog", linthresh=0.05)  # , nonpositive='clip')
                 axis2.axhline(y=0.05)
                 axis2.set_xlabel(bin_id)
-                axis2.set_ylabel("Significance contrasted to Random Search")
-                axis2.set_title(f"Estimates by {system_id} and {bin_id}")
+                axis2.set_ylabel("P-Value of significant difference")
+                axis2.set_title("Significance contrasted to Random Search")
                 axis2.legend()
                 plt.ylim(
                     min(contrasts_collection_selection["P-val"]),
