@@ -2,7 +2,9 @@
 import typing
 
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
+from matplotlib.ticker import MultipleLocator
 from pymer4.models import Lmer
 from scipy import stats
 
@@ -38,7 +40,7 @@ def conduct_analysis(
     system_id: str,
     input_id: str,
     bin_id: typing.Optional[str] = None,
-    bins: typing.Optional[typing.Union[list[list[str]], list[float]]] = None,
+    bins: typing.Optional[typing.Union[list[list[str]], list[float], float]] = None,
     bin_labels: typing.Optional[list[str]] = None,
     subset: typing.Optional[
         typing.Union[
@@ -51,7 +53,7 @@ def conduct_analysis(
     show_plots: bool = True,
     summarize: bool = True,
     show_contrasts: bool = True,
-    significance_plot: bool = False,
+    significance_plot: typing.Optional[str] = None,
 ) -> typing.Union[
     typing.Union[
         typing.Tuple[
@@ -79,17 +81,19 @@ def conduct_analysis(
         system_id (str): Column name of system (e.g. Algorithm) in dataset
         input_id (str): Column name of input (e.g. Benchmark) in dataset
         bin_id (str, optional): Column name of bin (e.g. Budget). Defaults to None.
-        bins (typing.Union[list[list[str]], list[float]], optional): Specified bins: If None, bins for every unique value are used. If list of float, numeric variable gets binned into intervals according to list. If list of list of str, variable gets binned into bins according to sublists. Defaults to None.
+        bins (typing.Union[list[list[str]], list[float], float], optional): Specified bins: If None, bins for every unique value are used. If list of float, numeric variable gets binned into intervals according to list. If list of list of str, variable gets binned into bins according to sublists. Defaults to None.
         bin_labels (list[str], optional): Labels for bins. If None, bins are named after content/interval borders. If list of str, bins are named according to list. Defaults to None.
         subset (typing.Union[str,typing.Tuple[str, typing.Union[dict[str, any], str, list[str], list[list[str]]]]], optional): Subset of dataset that should be used for analysis. Only name of variable that defines subset to create subgroup for each entry or: First entry of tuple is name of variable, second entry is either list of entries that should be analysed iteratively (single entries or groups), or "all"/"a" for all entries. Defaults to None.
         show_plots (bool, optional): Show plots. First entry is boxplot comparing systems, second entry is graph showing systems in all bins. Defaults to True.
         summarize (bool, optional): Print results while analysing. Defaults to True.
         show_contrasts (bool, optional): Develop contrasts between systems
+        significance_plot (str, optional): Plot significance of contrasts to this value
 
     Raises:
         SystemExit: If Subset-Value is not in Dataset.
         SystemExit: If the number of Labels does not fit the number of numeric Bins.
         SystemExit: If the number of Labels does not fit the number of categorical Bins.
+        SystemExit: If the value for significance plot is an entry of the system_id.
 
     Returns:
         typing.Union[typing.Union[typing.Tuple[dict[str,typing.Any],typing.Union[typing.Any,typing.Tuple[typing.Any,pd.DataFrame]]],dict[str,typing.Any]],dict[str,typing.Union[typing.Tuple[dict[str,typing.Any],typing.Union[typing.Any,typing.Tuple[typing.Any,pd.DataFrame]]],dict[str,typing.Any]]]]: Result tuple, first the result-dictionary of the GLRT and second the post_hoc-analysis of the LMEM, consisting of first the estimated means for each system and second the contrasts. If a subsets are used, returns dictionary with full results for each subset. If contrasts are turned off, only returns estimated means as second tuple-entry. If post-hoc-analysis failed, only returns GLRT-Results.
@@ -256,6 +260,12 @@ def conduct_analysis(
             bin_labels = [str(number) for number in complete_bins]
             complete_bins = complete_bins + [max(complete_bins) + 1]
         else:
+            if isinstance(bins, (float, int)):
+                bins = np.round(
+                    np.linspace(data[bin_id].min(), data[bin_id].max(), bins + 1),
+                    decimals=2,
+                )
+                print(bins)
             bins_set = set(bins)
             bins_set.add(data[bin_id].min())
             bins_set.add(data[bin_id].max())
@@ -433,11 +443,15 @@ def conduct_analysis(
                 axis.legend()
                 plt.show()
 
-            contrasts_collection_selection = contrasts_collection.loc[
-                (contrasts_collection[f"{system_id}_1"] == "randomSearch")
-                | (contrasts_collection[f"{system_id}_2"] == "randomSearch")
-            ]
             if significance_plot:
+                if not significance_plot in data[system_id].unique():
+                    raise SystemExit(
+                        f"{significance_plot} not in {system_id}, choose from {data[system_id].unique()}"
+                    )
+                contrasts_collection_selection = contrasts_collection.loc[
+                    (contrasts_collection[f"{system_id}_1"] == significance_plot)
+                    | (contrasts_collection[f"{system_id}_2"] == significance_plot)
+                ]
                 _, axis2 = plt.subplots(figsize=(10, 6))
                 for contrast_pair, group in contrasts_collection_selection.groupby(
                     "Contrast", observed=True
@@ -449,16 +463,18 @@ def conduct_analysis(
                         capsize=3,
                         label=contrast_pair,
                     )
-                axis2.set_yscale("symlog", linthresh=0.05)  # , nonpositive='clip')
+                axis2.set_yscale("symlog", linthresh=0.05)
                 axis2.axhline(y=0.05)
+                axis2.yaxis.set_minor_locator(MultipleLocator(0.01))
                 axis2.set_xlabel(bin_id)
                 axis2.set_ylabel("P-Value of significant difference")
-                axis2.set_title("Significance contrasted to Random Search")
+                axis2.set_title(f"Significance contrasted to {significance_plot}")
                 axis2.legend()
                 plt.ylim(
                     min(contrasts_collection_selection["P-val"]),
                     max(contrasts_collection_selection["P-val"]),
                 )
+                plt.yticks(ticks=[0, 0.05, 1], labels=[0, 0.05, 1])
                 plt.show()
 
         if show_contrasts:
