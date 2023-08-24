@@ -470,10 +470,7 @@ def conduct_analysis(
                 axis2.set_ylabel("P-Value of significant difference")
                 axis2.set_title(f"Significance contrasted to {significance_plot}")
                 axis2.legend()
-                plt.ylim(
-                    min(contrasts_collection_selection["P-val"]),
-                    max(contrasts_collection_selection["P-val"]),
-                )
+                plt.ylim(0, 1)
                 plt.yticks(ticks=[0, 0.05, 1], labels=[0, 0.05, 1])
                 plt.show()
 
