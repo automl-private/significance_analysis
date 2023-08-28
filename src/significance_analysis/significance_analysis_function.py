@@ -155,6 +155,8 @@ def conduct_analysis(
             plt.xticks(rotation=-45, ha="right")
             plt.show()
 
+        data[system_id] = data[system_id].map(str)
+
         # System-identifier: system_id
         # Input-Identifier: input_id
         # Two models, "different"-Model assumes significant difference between performance of groups, divided by system-identifier
