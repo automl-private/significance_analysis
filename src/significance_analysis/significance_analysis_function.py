@@ -36,7 +36,7 @@ def conduct_analysis(
     data: pd.DataFrame,
     metric: str,
     system_id: str,
-    input_id: str,
+    input_id: typing.Optional[str] = None,
     bin_id: typing.Optional[str] = None,
     bins: typing.Optional[typing.Union[list[list[str]], list[float]]] = None,
     bin_labels: typing.Optional[list[str]] = None,
@@ -76,7 +76,7 @@ def conduct_analysis(
         data (pd.DataFrame): Dataset
         metric (str): Column name of metric (e.g. Mean) in dataset
         system_id (str): Column name of system (e.g. Algorithm) in dataset
-        input_id (str): Column name of input (e.g. Benchmark) in dataset
+        input_id (str, optional): Column name of grouping factor (e.g. Benchmark) in dataset. Defaults to None.
         bin_id (str, optional): Column name of bin (e.g. Budget). Defaults to None.
         bins (typing.Union[list[list[str]], list[float]], optional): Specified bins: If None, bins for every unique value are used. If list of float, numeric variable gets binned into intervals according to list. If list of list of str, variable gets binned into bins according to sublists. Defaults to None.
         bin_labels (list[str], optional): Labels for bins. If None, bins are named after content/interval borders. If list of str, bins are named according to list. Defaults to None.
@@ -142,6 +142,9 @@ def conduct_analysis(
     pd.set_option("display.width", 10000)
 
     if not bin_id:
+        if not input_id:
+            input_id = "input_id_dummy"
+            data[input_id] = "d"
         if len(data[input_id].unique()) == 1:
             data.loc[data.sample(1).index, input_id] = data[input_id].unique()[0] + "_d"
 
@@ -152,7 +155,7 @@ def conduct_analysis(
                 labels=list(data[system_id].unique()),
             )
             plt.yscale("log")
-            plt.xticks(rotation=-45, ha="right")
+            plt.xticks(rotation=-45, ha="left")
             plt.show()
 
         data[system_id] = data[system_id].map(str)
@@ -173,7 +176,7 @@ def conduct_analysis(
         )
 
         # "Common"-Model assumes no significant difference, which is why the system-identifier is not included
-        common_mean_model = Lmer(formula=f"{metric}~ (1 | {input_id})", data=data)
+        common_mean_model = Lmer(formula=f"{metric}~(1|{input_id})", data=data)
         common_mean_model.fit(REML=False, summarize=False)
 
         # Signficant p-value shows, that different-Model fits data sign. better, i.e.
