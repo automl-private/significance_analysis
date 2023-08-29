@@ -38,7 +38,7 @@ def conduct_analysis(
     data: pd.DataFrame,
     metric: str,
     system_id: str,
-    input_id: str,
+    input_id: typing.Optional[str] = None,
     bin_id: typing.Optional[str] = None,
     bins: typing.Optional[typing.Union[list[list[str]], list[float], float]] = None,
     bin_labels: typing.Optional[list[str]] = None,
@@ -147,6 +147,9 @@ def conduct_analysis(
     pd.set_option("display.width", 10000)
 
     if not bin_id:
+        if not input_id:
+            input_id = "input_id_dummy"
+            data[input_id] = "d"
         if len(data[input_id].unique()) == 1:
             data.loc[data.sample(1).index, input_id] = data[input_id].unique()[0] + "_d"
 
