@@ -2,6 +2,7 @@
 import typing
 
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 from pymer4.models import Lmer
 from scipy import stats
@@ -38,7 +39,7 @@ def conduct_analysis(
     system_id: str,
     input_id: typing.Optional[str] = None,
     bin_id: typing.Optional[str] = None,
-    bins: typing.Optional[typing.Union[list[list[str]], list[float]]] = None,
+    bins: typing.Optional[typing.Union[list[list[str]], list[float], float]] = None,
     bin_labels: typing.Optional[list[str]] = None,
     subset: typing.Optional[
         typing.Union[
@@ -49,7 +50,7 @@ def conduct_analysis(
         ]
     ] = None,
     show_plots: bool = True,
-    summarize: bool = True,
+    verbosity: int = 2,
     show_contrasts: bool = True,
 ) -> typing.Union[
     typing.Union[
@@ -76,19 +77,21 @@ def conduct_analysis(
         data (pd.DataFrame): Dataset
         metric (str): Column name of metric (e.g. Mean) in dataset
         system_id (str): Column name of system (e.g. Algorithm) in dataset
-        input_id (str, optional): Column name of grouping factor (e.g. Benchmark) in dataset. Defaults to None.
+        input_id (str): Column name of input (e.g. Benchmark) in dataset
         bin_id (str, optional): Column name of bin (e.g. Budget). Defaults to None.
-        bins (typing.Union[list[list[str]], list[float]], optional): Specified bins: If None, bins for every unique value are used. If list of float, numeric variable gets binned into intervals according to list. If list of list of str, variable gets binned into bins according to sublists. Defaults to None.
+        bins (typing.Union[list[list[str]], list[float], float], optional): Specified bins: If None, bins for every unique value are used. If list of float, numeric variable gets binned into intervals according to list. If list of list of str, variable gets binned into bins according to sublists. Defaults to None.
         bin_labels (list[str], optional): Labels for bins. If None, bins are named after content/interval borders. If list of str, bins are named according to list. Defaults to None.
         subset (typing.Union[str,typing.Tuple[str, typing.Union[dict[str, any], str, list[str], list[list[str]]]]], optional): Subset of dataset that should be used for analysis. Only name of variable that defines subset to create subgroup for each entry or: First entry of tuple is name of variable, second entry is either list of entries that should be analysed iteratively (single entries or groups), or "all"/"a" for all entries. Defaults to None.
         show_plots (bool, optional): Show plots. First entry is boxplot comparing systems, second entry is graph showing systems in all bins. Defaults to True.
-        summarize (bool, optional): Print results while analysing. Defaults to True.
+        verbosity (int, optional): Verbosity of output while analysing. Defaults to 2, other levels are 1 and 0.
         show_contrasts (bool, optional): Develop contrasts between systems
+        significance_plot (str, optional): Plot significance of contrasts to this value
 
     Raises:
         SystemExit: If Subset-Value is not in Dataset.
         SystemExit: If the number of Labels does not fit the number of numeric Bins.
         SystemExit: If the number of Labels does not fit the number of categorical Bins.
+        SystemExit: If the value for significance plot is an entry of the system_id.
 
     Returns:
         typing.Union[typing.Union[typing.Tuple[dict[str,typing.Any],typing.Union[typing.Any,typing.Tuple[typing.Any,pd.DataFrame]]],dict[str,typing.Any]],dict[str,typing.Union[typing.Tuple[dict[str,typing.Any],typing.Union[typing.Any,typing.Tuple[typing.Any,pd.DataFrame]]],dict[str,typing.Any]]]]: Result tuple, first the result-dictionary of the GLRT and second the post_hoc-analysis of the LMEM, consisting of first the estimated means for each system and second the contrasts. If a subsets are used, returns dictionary with full results for each subset. If contrasts are turned off, only returns estimated means as second tuple-entry. If post-hoc-analysis failed, only returns GLRT-Results.
@@ -115,7 +118,8 @@ def conduct_analysis(
             subset_list = subset[1]
         return_dict = {}
         for subset_item in subset_list:
-            print(f"Analysis for {subset_item}")
+            if verbosity > 0:
+                print(f"Analysis for {subset_item}")
             if isinstance(subset_item, str):
                 subset_item = [subset_item]
             if any(item not in data[subset[0]].unique() for item in subset_item):
@@ -131,7 +135,7 @@ def conduct_analysis(
                 bins=bins,
                 bin_labels=bin_labels,
                 show_plots=show_plots,
-                summarize=summarize,
+                verbosity=verbosity,
                 show_contrasts=show_contrasts,
             )
         return return_dict
@@ -155,10 +159,8 @@ def conduct_analysis(
                 labels=list(data[system_id].unique()),
             )
             plt.yscale("log")
-            plt.xticks(rotation=-45, ha="left")
+            plt.xticks(rotation=-45, ha="right")
             plt.show()
-
-        data[system_id] = data[system_id].map(str)
 
         # System-identifier: system_id
         # Input-Identifier: input_id
@@ -176,26 +178,28 @@ def conduct_analysis(
         )
 
         # "Common"-Model assumes no significant difference, which is why the system-identifier is not included
-        common_mean_model = Lmer(formula=f"{metric}~(1|{input_id})", data=data)
+        common_mean_model = Lmer(formula=f"{metric}~ (1 | {input_id})", data=data)
         common_mean_model.fit(REML=False, summarize=False)
 
         # Signficant p-value shows, that different-Model fits data sign. better, i.e.
         # There is signficant difference in system-identifier
         result_glrt_dm_cm = glrt(different_means_model, common_mean_model)
         p_value = result_glrt_dm_cm["p"]
-        print(f"P-value: {p_value}")
-        if result_glrt_dm_cm["p"] < 0.05:
-            print(
-                f"\nAs the p-value {p_value} is smaller than 0.05, we can reject the Null-Hypothesis that the model "
-                f"that does not consider the {system_id} describes the data as well as the one that does. Therefore "
-                f"there is significant difference within {system_id}.\n"
-            )
-        else:
-            print(
-                f"\nAs the p-value {p_value} is not smaller than 0.05, we cannot reject the Null-Hypothesis that the model "
-                f"that does not consider the {system_id} describes the data as well as the one that does. Therefore "
-                f"there is no significant difference within {system_id}\n."
-            )
+
+        if verbosity > 0:
+            print(f"P-value: {p_value}")
+            if result_glrt_dm_cm["p"] < 0.05:
+                print(
+                    f"\nAs the p-value {p_value} is smaller than 0.05, we can reject the Null-Hypothesis that the model "
+                    f"that does not consider the {system_id} describes the data as well as the one that does. Therefore "
+                    f"there is significant difference within {system_id}.\n"
+                )
+            else:
+                print(
+                    f"\nAs the p-value {p_value} is not smaller than 0.05, we cannot reject the Null-Hypothesis that the model "
+                    f"that does not consider the {system_id} describes the data as well as the one that does. Therefore "
+                    f"there is no significant difference within {system_id}\n."
+                )
 
         # Post hoc divides the "different"-Model into its three systems
         post_hoc_results = different_means_model.post_hoc(marginal_vars=[system_id])
@@ -214,7 +218,7 @@ def conduct_analysis(
             column = contrasts.pop(system_id + "_1")
             contrasts.insert(0, system_id + "_1", column)
 
-            if summarize:
+            if verbosity > 1:
                 # [0] shows group-means, i.e. performance of the single system-groups
                 print(post_hoc_results[0])  # cell (group) means
                 # [1] shows the pairwise comparisons, i.e. improvements over each other, with p-value
@@ -239,15 +243,15 @@ def conduct_analysis(
                     "***",
                 ]:
                     contenders.append(row[system_id + "_1"])
-
-            if contenders:
-                print(
-                    f"The best performing {system_id} is {best_system_id}, but {contenders} are only insignificantly worse.\n"
-                )
-            else:
-                print(
-                    f"The best performing {system_id} is {best_system_id}, all other perform significantly worse.\n"
-                )
+            if verbosity > 0:
+                if contenders:
+                    print(
+                        f"The best performing {system_id} is {best_system_id}, but {contenders} are only insignificantly worse.\n"
+                    )
+                else:
+                    print(
+                        f"The best performing {system_id} is {best_system_id}, all other perform significantly worse.\n"
+                    )
 
             if show_contrasts:
                 return result_glrt_dm_cm, post_hoc_results
@@ -260,6 +264,11 @@ def conduct_analysis(
             bin_labels = [str(number) for number in complete_bins]
             complete_bins = complete_bins + [max(complete_bins) + 1]
         else:
+            if isinstance(bins, (float, int)):
+                bins = np.round(
+                    np.linspace(data[bin_id].min(), data[bin_id].max(), bins + 1),
+                    decimals=2,
+                )
             bins_set = set(bins)
             bins_set.add(data[bin_id].min())
             bins_set.add(data[bin_id].max())
@@ -343,29 +352,31 @@ def conduct_analysis(
     # If it's significant, look at if different systems perform better at different bin-classes
     result_glrt_ex_ni = glrt(model_expanded, model_nointeraction)
     p_value = result_glrt_ex_ni["p"]
-    print(f"P-value: {p_value}")
-    if p_value < 0.05:
-        print(
-            f"\nAs the p-value {p_value} is smaller than 0.05, we can reject the Null-Hypothesis that the model "
-            f"that does not consider the {system_id} and the {bin_id} describes the data as well as the one that does. Therefore "
-            f"there is significant difference within {system_id} and the {bin_id}.\n"
-        )
-    else:
-        print(
-            f"\nAs the p-value {p_value} is not smaller than 0.05, we cannot reject the Null-Hypothesis that the model "
-            f"that does not consider the {system_id} and the {bin_id} describes the data as well as the one that does. Therefore "
-            f"there is no significant difference within {system_id} and {bin_id}\n."
-        )
+    if verbosity > 0:
+        print(f"P-value: {p_value}")
+        if p_value < 0.05:
+            print(
+                f"\nAs the p-value {p_value} is smaller than 0.05, we can reject the Null-Hypothesis that the model "
+                f"that does not consider the {system_id} and the {bin_id} describes the data as well as the one that does. Therefore "
+                f"there is significant difference within {system_id} and the {bin_id}.\n"
+            )
+        else:
+            print(
+                f"\nAs the p-value {p_value} is not smaller than 0.05, we cannot reject the Null-Hypothesis that the model "
+                f"that does not consider the {system_id} and the {bin_id} describes the data as well as the one that does. Therefore "
+                f"there is no significant difference within {system_id} and {bin_id}\n."
+            )
 
     post_hoc_results = model_expanded.post_hoc(
         marginal_vars=system_id, grouping_vars=f"{bin_id}_bins"
     )
     if post_hoc_results:
-        if summarize:
+        if verbosity > 1:
             # Means of each combination
             print(post_hoc_results[0])
         if show_contrasts:
             # Comparisons for each combination
+            contrasts_collection = pd.DataFrame()
             for group in data[f"{bin_id}_bins"].unique():
                 contrasts = post_hoc_results[1].query(f"{bin_id}_bins == '{group}'")
 
@@ -376,12 +387,13 @@ def conduct_analysis(
                     contrasts.loc[
                         contrasts["Contrast"] == pair, system_id + "_2"
                     ] = pair.split(" - ")[1]
-                contrasts = contrasts.drop("Contrast", axis=1)
+                # contrasts = contrasts.drop("Contrast", axis=1)
                 column = contrasts.pop(system_id + "_2")
                 contrasts.insert(0, system_id + "_2", column)
                 column = contrasts.pop(system_id + "_1")
                 contrasts.insert(0, system_id + "_1", column)
-                if summarize:
+                contrasts_collection = pd.concat([contrasts_collection, contrasts])
+                if verbosity > 1:
                     print(contrasts[contrasts["Sig"] != ""])
                 best_system_id = (
                     post_hoc_results[0]
@@ -406,16 +418,15 @@ def conduct_analysis(
                         "***",
                     ]:
                         contenders.append(row[system_id + "_1"])
-
-                if contenders:
-                    print(
-                        f"The best performing {system_id} in {bin_id}-class {group} is {best_system_id}, but {contenders} are only insignificantly worse.\n"
-                    )
-                else:
-                    print(
-                        f"The best performing {system_id} in {bin_id}-class {group} is {best_system_id}, all other perform significantly worse.\n"
-                    )
-
+                if verbosity > 0:
+                    if contenders:
+                        print(
+                            f"The best performing {system_id} in {bin_id}-class {group} is {best_system_id}, but {contenders} are only insignificantly worse.\n"
+                        )
+                    else:
+                        print(
+                            f"The best performing {system_id} in {bin_id}-class {group} is {best_system_id}, all other perform significantly worse.\n"
+                        )
             if show_plots:
                 _, axis = plt.subplots(figsize=(10, 6))
                 for sys_id, group in post_hoc_results[0].groupby(system_id):
