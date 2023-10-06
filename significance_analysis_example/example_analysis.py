@@ -20,7 +20,7 @@ if __name__ == "__main__":
         "benchmark",
         bin_id="budget",
         bins=[9, 20, 35, 45],
-        summarize=False,
+        verbosity=False,
     )
 
     # Third Analysis: Analyse performance of acquisition functions on each benchmark seperately over all trainingrounds
