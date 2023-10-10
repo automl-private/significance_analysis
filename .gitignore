@@ -3,3 +3,9 @@ __pycache__/
 poetry.lock
 dist/
 significance_analysis_example/priorbend_formatted.csv
+significance_analysis_example/grouped_fidelity_model.joblib
+significance_analysis_example/grouped_fidelity_model.rds
+significance_analysis_example/linear_fidelity_model.joblib
+significance_analysis_example/linear_fidelity_model.rds
+significance_analysis_example/no_fidelity_model.joblib
+significance_analysis_example/no_fidelity_model.rds
