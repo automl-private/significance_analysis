@@ -40,8 +40,12 @@ def conduct_analysis(
     system_id: str,
     input_id: typing.Optional[str] = None,
     bin_id: typing.Optional[str] = None,
-    bins: typing.Optional[typing.Union[list[list[str]], list[float], float]] = None,
+    bins: typing.Optional[
+        typing.Union[list[list[str]], list[float], typing.Union[float, int]]
+    ] = None,
     bin_labels: typing.Optional[list[str]] = None,
+    fidelity: str = None,
+    continuous_fidelity: int = True,
     subset: typing.Optional[
         typing.Union[
             str,
@@ -83,6 +87,8 @@ def conduct_analysis(
         bin_id (str, optional): Column name of bin (e.g. Budget). Defaults to None.
         bins (typing.Union[list[list[str]], list[float], float], optional): Specified bins: If None, bins for every unique value are used. If list of float, numeric variable gets binned into intervals according to list. If list of list of str, variable gets binned into bins according to sublists. Defaults to None.
         bin_labels (list[str], optional): Labels for bins. If None, bins are named after content/interval borders. If list of str, bins are named according to list. Defaults to None.
+        fidelity (str): Column name of additional random effect (e.g. Fidelity) in dataset. Defaults to None.
+        continous_fidelity (bool): Single, linear effect for fidelity. If False, individual effects for each unique entry. Defaults to True.
         subset (typing.Union[str,typing.Tuple[str, typing.Union[dict[str, any], str, list[str], list[list[str]]]]], optional): Subset of dataset that should be used for analysis. Only name of variable that defines subset to create subgroup for each entry or: First entry of tuple is name of variable, second entry is either list of entries that should be analysed iteratively (single entries or groups), or "all"/"a" for all entries. Defaults to None.
         show_plots (bool, optional): Show plots. First entry is boxplot comparing systems, second entry is graph showing systems in all bins. Defaults to True.
         verbosity (int, optional): Verbosity of output while analysing. Defaults to 2, other levels are 1 and 0.
@@ -136,6 +142,8 @@ def conduct_analysis(
                 bin_id,
                 bins=bins,
                 bin_labels=bin_labels,
+                fidelity=fidelity,
+                continuous_fidelity=continuous_fidelity,
                 show_plots=show_plots,
                 verbosity=verbosity,
                 show_contrasts=show_contrasts,
@@ -146,6 +154,14 @@ def conduct_analysis(
     pd.set_option("display.max_rows", 5000)
     pd.set_option("display.max_columns", 5000)
     pd.set_option("display.width", 10000)
+
+    if fidelity:
+        if continuous_fidelity:
+            fidelity_part = f"+{fidelity}"
+        else:
+            fidelity_part = f"+(1|{fidelity})"
+    else:
+        fidelity_part = ""
 
     if not bin_id:
         if not input_id:
@@ -161,7 +177,7 @@ def conduct_analysis(
                 labels=list(data[system_id].unique()),
             )
             plt.yscale("log")
-            plt.xticks(rotation=-45, ha="right")
+            plt.xticks(rotation=-45, ha="left")
             plt.show()
 
         # System-identifier: system_id
@@ -169,7 +185,8 @@ def conduct_analysis(
         # Two models, "different"-Model assumes significant difference between performance of groups, divided by system-identifier
         # Formula has form: "metric ~ system_id + (1 | input_id)"
         different_means_model = Lmer(
-            formula=f"{metric}~{system_id}+(1|{input_id})", data=data
+            formula=f"{metric}~{system_id}" + fidelity_part + f"+(1|{input_id})",
+            data=data,
         )
 
         # factors specifies names of system_identifier, i.e. Baseline, or Algorithm1
@@ -180,7 +197,9 @@ def conduct_analysis(
         )
 
         # "Common"-Model assumes no significant difference, which is why the system-identifier is not included
-        common_mean_model = Lmer(formula=f"{metric}~ (1 | {input_id})", data=data)
+        common_mean_model = Lmer(
+            formula=f"{metric}~ " + fidelity_part + f"+(1 | {input_id})", data=data
+        )
         common_mean_model.fit(REML=False, summarize=False)
 
         # Signficant p-value shows, that different-Model fits data sign. better, i.e.
@@ -260,7 +279,7 @@ def conduct_analysis(
             return result_glrt_dm_cm, post_hoc_results[0]
         return result_glrt_dm_cm
 
-    if not any(isinstance(element, str) for element in data[bin_id]):
+    elif not any(isinstance(element, str) for element in data[bin_id]):
         if not bins:
             complete_bins = sorted(list(data[bin_id].unique()))
             bin_labels = [str(number) for number in complete_bins]
@@ -271,7 +290,8 @@ def conduct_analysis(
                     np.linspace(data[bin_id].min(), data[bin_id].max(), bins + 1),
                     decimals=2,
                 )
-                print(bins)
+                if verbosity > 1:
+                    print(f"Bins: {bins}")
             bins_set = set(bins)
             bins_set.add(data[bin_id].min())
             bins_set.add(data[bin_id].max())
@@ -327,7 +347,9 @@ def conduct_analysis(
 
     # New model "expanded": Divides into system AND bin-classes (Term system:bin_id allows for Cartesian Product, i.e. different Mean for each system and bin-class)
     model_expanded = Lmer(
-        f"{metric} ~  {system_id} + {bin_id}_bins + {system_id}:{bin_id}_bins + (1 | {input_id})",
+        f"{metric} ~  {system_id} "
+        + fidelity_part
+        + f"+ {bin_id}_bins + {system_id}:{bin_id}_bins + (1 | {input_id})",
         data=data,
     )
     model_expanded.fit(
@@ -340,7 +362,9 @@ def conduct_analysis(
     )
     # Second model "nointeraction" lacks system:src-Term to hypothesise no interaction, i.e. no difference when changing bin-class
     model_nointeraction = Lmer(
-        f"{metric} ~ {system_id} + {bin_id}_bins + (1 | {input_id})",
+        f"{metric} ~ {system_id} "
+        + fidelity_part
+        + f"+ {bin_id}_bins + (1 | {input_id})",
         data=data,
     )
     model_nointeraction.fit(
@@ -431,6 +455,12 @@ def conduct_analysis(
                             f"The best performing {system_id} in {bin_id}-class {group} is {best_system_id}, all other perform significantly worse.\n"
                         )
             if show_plots:
+                color_dict = {
+                    "random_search": "red",
+                    "hyperband": "green",
+                    "pb_mutation_dynamic_geometric-default-at-target": "blue",
+                    "priorband": "blue",
+                }
                 _, axis = plt.subplots(figsize=(10, 6))
                 for sys_id, group in post_hoc_results[0].groupby(system_id):
                     print(group)
@@ -438,16 +468,21 @@ def conduct_analysis(
                         group[f"{bin_id}_bins"],
                         group["Estimate"],
                         yerr=group["SE"],
-                        fmt="o-",
-                        capsize=3,
+                        fmt="-o",
+                        markersize=2,
                         label=sys_id,
+                        color=color_dict[sys_id],
                         lolims=group["2.5_ci"],
                         uplims=group["97.5_ci"],
                     )
+                    # caps.set_markeredgewidth(10)
+                    # axis.legend(handles=[errorbar[1]], labels=[sys_id])
                 axis.set_xlabel(bin_id)
                 axis.set_ylabel("Estimate")
                 axis.set_title(f"Estimates by {system_id} and {bin_id}")
                 axis.legend()
+
+                plt.xticks(rotation=-45, ha="left")
                 plt.show()
 
             if significance_plot:
