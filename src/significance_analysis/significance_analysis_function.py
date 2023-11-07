@@ -271,7 +271,7 @@ def conduct_analysis(
                     )
                 else:
                     print(
-                        f"The best performing {system_id} is {best_system_id}, all other perform significantly worse.\n"
+                        f"The best performing {system_id} is {best_system_id}, all others perform significantly worse.\n"
                     )
 
             if show_contrasts:
@@ -452,7 +452,7 @@ def conduct_analysis(
                         )
                     else:
                         print(
-                            f"The best performing {system_id} in {bin_id}-class {group} is {best_system_id}, all other perform significantly worse.\n"
+                            f"The best performing {system_id} in {bin_id}-class {group} is {best_system_id}, all others perform significantly worse.\n"
                         )
             if show_plots:
                 color_dict = {
@@ -483,6 +483,7 @@ def conduct_analysis(
                 axis.legend()
 
                 plt.xticks(rotation=-45, ha="left")
+                plt.autoscale(enable=True, axis="y", tight=None)
                 plt.show()
 
             if significance_plot:
