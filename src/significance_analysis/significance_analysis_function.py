@@ -313,6 +313,7 @@ def conduct_analysis(
             bins=complete_bins,
             labels=bin_labels,
             include_lowest=True,
+            right=False,
         )
 
     else:
@@ -414,14 +415,13 @@ def conduct_analysis(
                     contrasts.loc[
                         contrasts["Contrast"] == pair, system_id + "_2"
                     ] = pair.split(" - ")[1]
-                # contrasts = contrasts.drop("Contrast", axis=1)
                 column = contrasts.pop(system_id + "_2")
                 contrasts.insert(0, system_id + "_2", column)
                 column = contrasts.pop(system_id + "_1")
                 contrasts.insert(0, system_id + "_1", column)
                 contrasts_collection = pd.concat([contrasts_collection, contrasts])
                 if verbosity > 1:
-                    print(contrasts[contrasts["Sig"] != ""])
+                    print(contrasts)
                 best_system_id = (
                     post_hoc_results[0]
                     .query(f"{bin_id}_bins == '{group}'")
@@ -460,10 +460,12 @@ def conduct_analysis(
                     "hyperband": "green",
                     "pb_mutation_dynamic_geometric-default-at-target": "blue",
                     "priorband": "blue",
+                    "RS": "red",
+                    "HB": "green",
+                    "PB": "blue",
                 }
                 _, axis = plt.subplots(figsize=(10, 6))
                 for sys_id, group in post_hoc_results[0].groupby(system_id):
-                    print(group)
                     axis.errorbar(
                         group[f"{bin_id}_bins"],
                         group["Estimate"],
@@ -483,7 +485,6 @@ def conduct_analysis(
                 axis.legend()
 
                 plt.xticks(rotation=-45, ha="left")
-                plt.autoscale(enable=True, axis="y", tight=None)
                 plt.show()
 
             if significance_plot:
@@ -518,6 +519,7 @@ def conduct_analysis(
                 plt.show()
 
         if show_contrasts:
-            return result_glrt_ex_ni, post_hoc_results
+            # ost_hoc_results[1]=contrasts_collection
+            return result_glrt_ex_ni, (post_hoc_results[0], contrasts_collection)
         return result_glrt_ex_ni, post_hoc_results[0]
     return result_glrt_ex_ni
