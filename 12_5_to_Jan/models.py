@@ -14,6 +14,7 @@ import typing
 import pandas as pd
 from pymer4.models import Lmer
 from scipy import stats
+from scipy.stats import rankdata
 
 pd.set_option("chained_assignment", None)
 pd.set_option("display.max_rows", 5000)
@@ -21,7 +22,7 @@ pd.set_option("display.max_columns", 5000)
 pd.set_option("display.width", 10000)
 
 
-def load_priorband_data(combine_bench_prior: bool = True):
+def load_priorband_data():
     df = pd.read_parquet("priorband_single.parquet")
     df = df.reset_index()
     df_collection = []
@@ -30,20 +31,75 @@ def load_priorband_data(combine_bench_prior: bool = True):
         partial_df["value"] = df[f"seed-{seed_nr}"]
         partial_df["seed"] = seed_nr
         df_collection.append(partial_df)
-        print(f"⚙️ Seed {seed_nr+1}/50", end="\r", flush=True)
+        print(f"⚙️ Seed {seed_nr+1}/50        ", end="\r", flush=True)
     complete_df = pd.concat(df_collection, ignore_index=True)
-
-    if combine_bench_prior:
-
-        def combine_bench_priors(row):
-            return f"{row['benchmark']}_{row['prior']}"
-
-        complete_df["bench_prior"] = complete_df.apply(combine_bench_priors, axis=1)
-    print("✅ Loading data done")
+    print("✅ Loading data done     ")
     return complete_df
 
 
-def glrt(mod1: Lmer, mod2: Lmer) -> dict[str, typing.Any]:
+def combine_bench_prior(row):
+    return f"{row['benchmark']}_{row['prior']}"
+
+
+def add_rel_ranks(row, data: pd.DataFrame, benchmark: str):
+    values = data.loc[
+        (data[benchmark] == row[benchmark]) & (data["seed"] == row["seed"])
+    ]["value"].values
+    ranked_data = rankdata(values)
+    return ranked_data[values.tolist().index(row["value"])].astype(float)
+
+
+def rename_algos(row, algo_dict: dict):
+    return algo_dict[row["algorithm"]]
+
+
+def create_incumbent(data, fs, f_space, benchmarks, algos, benchmark, algorithm):
+    dataset = pd.DataFrame()
+    for n_f, max_f in enumerate(f_space):
+        for b_n, bench in enumerate(benchmarks):
+            df_at_point = data.loc[
+                (data["used_fidelity"] <= max_f)
+                & (data[benchmark] == bench)
+                & (data[algorithm].isin(algos))
+            ]
+            for seed in df_at_point["seed"].unique():
+                print(
+                    f"⚙️ Fidelity {n_f+1}/{len(f_space)}, Benchmark {b_n+1}/{len(benchmarks)}          ",
+                    end="\r",
+                    flush=True,
+                )
+                for algo in algos:
+                    if (
+                        len(
+                            df_at_point.loc[
+                                (df_at_point["seed"] == seed)
+                                & (df_at_point["algorithm"] == algo)
+                            ]
+                        )
+                        > 0
+                    ):
+                        df_criteria = (
+                            df_at_point.loc[
+                                (df_at_point["seed"] == seed)
+                                & (df_at_point["algorithm"] == algo)
+                            ]
+                            .iloc[-1]
+                            .to_frame()
+                            .T
+                        )
+                        df_criteria["used_fidelity"] = max_f
+                        dataset = pd.concat([dataset, df_criteria], ignore_index=True)
+        dataset[["value", "used_fidelity"]] = dataset[["value", "used_fidelity"]].astype(
+            float
+        )
+        dataset["seed"] = dataset["seed"].astype(int)
+    datasets = {}
+    for max_f in fs:
+        datasets[max_f] = dataset.loc[dataset["used_fidelity"] <= max_f]
+    return datasets
+
+
+def glrt(mod1: Lmer, mod2: Lmer, names: list[str] = None) -> dict[str, typing.Any]:
     """Generalized Likelihood Ratio Test on two Liner Mixed Effect Models from R
 
     Args:
@@ -61,10 +117,17 @@ def glrt(mod1: Lmer, mod2: Lmer) -> dict[str, typing.Any]:
     )
     chi_square = 2 * abs(mod1.logLike - mod2.logLike)
     delta_params = abs(len(mod1.coefs) - len(mod2.coefs))
+    if names:
+        print(
+            f"{names[0]} ({round(mod1.logLike,2)}) {'>>' if mod1.logLike>mod2.logLike else '<<'} {names[1]} ({round(mod2.logLike,2)})"
+        )
+        print(
+            f"Chi-Square: {chi_square}, P-Value: {1 - stats.chi2.cdf(chi_square, df=delta_params)}"
+        )
     return {
+        "p": 1 - stats.chi2.cdf(chi_square, df=delta_params),
         "chi_square": chi_square,
         "df": delta_params,
-        "p": 1 - stats.chi2.cdf(chi_square, df=delta_params),
     }
 
 
