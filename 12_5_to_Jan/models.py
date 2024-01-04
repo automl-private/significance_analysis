@@ -119,7 +119,7 @@ def glrt(mod1: Lmer, mod2: Lmer, names: list[str] = None) -> dict[str, typing.An
     delta_params = abs(len(mod1.coefs) - len(mod2.coefs))
     if names:
         print(
-            f"{names[0]} ({round(mod1.logLike,2)}) {'>>' if mod1.logLike>mod2.logLike else '<<'} {names[1]} ({round(mod2.logLike,2)})"
+            f"{names[0]} ({round(mod1.logLike,2)}) {'>>' if mod1.logLike>mod2.logLike else '<<' if mod1.logLike<mod2.logLike else '=='} {names[1]} ({round(mod2.logLike,2)})"
         )
         print(
             f"Chi-Square: {chi_square}, P-Value: {1 - stats.chi2.cdf(chi_square, df=delta_params)}"
