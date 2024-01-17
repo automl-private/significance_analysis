@@ -10,9 +10,10 @@ from matplotlib.gridspec import GridSpec
 from matplotlib.ticker import MultipleLocator"""
 import typing
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from pymer4.models import Lm, Lmer
+from pymer4.models import Lmer
 from scipy import stats
 from scipy.stats import rankdata
 
@@ -140,6 +141,7 @@ def create_priorband_benchPrior_relRanks_f24():
     ]
     fs = [24]
     f_space = np.linspace(1, max(fs), max(fs)).tolist()
+
     benchmarks = [
         "jahs_cifar10",
         "jahs_colorectal_histology",
@@ -172,7 +174,7 @@ def create_priorband_benchPrior_relRanks_f24():
         "translatewmt_xformer_64": "PD1-WMT",
         "random_search_prior": "RS+Prior",
         "bo": "BO",
-        "pibo": "PiBO",
+        "pibo-no-default": "PiBO",
         "bohb": "BOHB",
         "priorband_bo": "PriorBand+BO",
     }
@@ -197,6 +199,75 @@ def create_priorband_benchPrior_relRanks_f24():
     print(f"⚙️ F {max_f}: Renaming algorithms             ", end="\r", flush=True)
     data[algorithm] = data.apply(rename_algos, algo_dict=label_dict, axis=1)
     print("✅ Dataset loaded                   ", end="\r", flush=True)
+    return data
+
+
+def create_piBo_benchPrior_relRanks_f24():
+    algorithm = "algorithm"
+    benchmark = "bench_prior"
+    time = "used_fidelity"
+    algos = ["random_search_prior", "priorband_bo", "pibo-no-default", "bo", "bohb"]
+    fs = [24]
+    f_space = np.linspace(1, max(fs), max(fs)).tolist()
+
+    benchmarks = [
+        "jahs_cifar10",
+        "jahs_colorectal_histology",
+        "jahs_fashion_mnist",
+        "lcbench-126026",
+        "lcbench-167190",
+        "lcbench-168330",
+        "lcbench-168910",
+        "lcbench-189906",
+        "cifar100_wideresnet_2048",
+        "imagenet_resnet_512",
+        "lm1b_transformer_2048",
+        "translatewmt_xformer_64",
+    ]
+    label_dict = {
+        "random_search": "RS",
+        "hyperband": "HB",
+        "pb_mutation_dynamic_geometric-default-at-target": "PB",
+        "jahs_cifar10": "JAHS-C10",
+        "jahs_colorectal_histology": "JAHS-CH",
+        "jahs_fashion_mnist": "JAHS-FM",
+        "lcbench-126026": "LC-126026",
+        "lcbench-167190": "LC-167190",
+        "lcbench-168330": "LC-168330",
+        "lcbench-168910": "LC-168910",
+        "lcbench-189906": "LC-189906",
+        "cifar100_wideresnet_2048": "PD1-Cifar100",
+        "imagenet_resnet_512": "PD1-ImageNet",
+        "lm1b_transformer_2048": "PD1-LM1B",
+        "translatewmt_xformer_64": "PD1-WMT",
+        "random_search_prior": "RS+Prior",
+        "bo": "BO",
+        "pibo-no-default": "PiBO",
+        "bohb": "BOHB",
+        "priorband_bo": "PriorBand+BO",
+    }
+
+    data = load_priorband_data()
+    data = data.loc[
+        (data[algorithm].isin(algos))
+        & (data["benchmark"].isin(benchmarks))
+        & (data["prior"].isin(["at25", "bad"]))
+    ]
+    data["bench_prior"] = data.apply(combine_bench_prior, axis=1)
+    data.drop(columns=["benchmark", "prior"], inplace=True)
+    benchmarks = data[benchmark].unique()
+    max_f = max(fs)
+    data = create_incumbent(data, fs, f_space, benchmarks, algos, benchmark, algorithm)[
+        max_f
+    ]
+    print(f"⚙️ F {max_f}: Adding relative ranks             ", end="\r", flush=True)
+    data["rel_rank"] = data.apply(
+        add_rel_ranks, data=data, benchmark=benchmark, time=time, axis=1
+    )
+    print(f"⚙️ F {max_f}: Renaming algorithms             ", end="\r", flush=True)
+    data[algorithm] = data.apply(rename_algos, algo_dict=label_dict, axis=1)
+    print("✅ Dataset loaded                   ", end="\r", flush=True)
+    data.to_parquet("pibo_benchPrior_relRanks_f24_meta.parquet")
     return data
 
 
@@ -263,11 +334,169 @@ def model(formula: str, data: pd.DataFrame, system_id: str = "algorithm"):
             factors={system_id: list(data[system_id].unique())},
             REML=False,
             summarize=False,
+            verbose=False,
         )
     else:
-        model = Lm(
-            formula=formula,
+        data["dummy"] = "0"
+        data.loc[0, "dummy"] = "1"
+        model = Lmer(
+            formula=formula + "+(1|dummy)",
             data=data,
         )
-        model.fit(verbose=False, summarize=False)
+
+        model.fit(
+            factors={system_id: list(data[system_id].unique())},
+            REML=False,
+            summarize=False,
+            verbose=False,
+        )
+        # model = Lm(
+        #     formula=formula,
+        #     data=data,
+        # )
+        # model.fit(verbose=False, summarize=False)
     return model
+
+
+def create_cd_cluster(
+    result_cluster, x_axis, y_axis
+):  #:list[list[(pd.DataFrame,pd.DataFrame)]],x_axis:list[str],y_axis:list[str]):
+    color_dict = {
+        "random_search": "red",
+        "hyperband": "green",
+        "pb_mutation_dynamic_geometric-default-at-target": "blue",
+        "priorband": "blue",
+        "RS": "red",
+        "HB": "green",
+        "PB": "blue",
+    }
+
+    _, axes = plt.subplots(
+        len(result_cluster),
+        len(result_cluster[0]),
+        figsize=(10, 10 * len(result_cluster[0]) / 3),
+    )
+    for list_n, list_e in enumerate(result_cluster):
+        for cell_n, cell in enumerate(list_e):
+            scoreframe = cell[0].sort_values(by=["Estimate"])[["algorithm", "Estimate"]]
+            contrasts = cell[1]
+            for pair in contrasts["Contrast"]:
+                contrasts.loc[contrasts["Contrast"] == pair, "algorithm_1"] = pair.split(
+                    " - "
+                )[0]
+                contrasts.loc[contrasts["Contrast"] == pair, "algorithm_2"] = pair.split(
+                    " - "
+                )[1]
+            contrasts = contrasts.drop("Contrast", axis=1)
+            column = contrasts.pop("algorithm_2")
+            contrasts.insert(0, "algorithm_2", column)
+            column = contrasts.pop("algorithm_1")
+            contrasts.insert(0, "algorithm_1", column)
+            contrastframe = contrasts[["Sig", "algorithm_1", "algorithm_2"]]
+
+            min_score = scoreframe["Estimate"][0]
+            max_score = scoreframe["Estimate"][len(scoreframe["Estimate"]) - 1]
+
+            # algo_lines_x = scoreframe["Estimate"].values.tolist()
+
+            significance_lines = []
+            for n_best_algo, best_algo in enumerate(scoreframe["algorithm"]):
+                for n_worst_algo, worst_algo in reversed(
+                    list(enumerate(scoreframe["algorithm"][n_best_algo + 1 :]))
+                ):
+                    significance = contrastframe.loc[
+                        (
+                            (contrastframe["algorithm_1"] == best_algo)
+                            & (contrastframe["algorithm_2"] == worst_algo)
+                        )
+                        | (
+                            (contrastframe["algorithm_2"] == best_algo)
+                            & (contrastframe["algorithm_1"] == worst_algo)
+                        )
+                    ]["Sig"][0]
+                    if significance in ["", "."]:
+                        new_line = [n_best_algo, n_best_algo + n_worst_algo + 1]
+                        if not any(
+                            existing_pair[0] <= new_line[0] <= existing_pair[1]
+                            and existing_pair[0] <= new_line[1] <= existing_pair[1]
+                            for existing_pair in significance_lines
+                        ):
+                            significance_lines.append(
+                                [n_best_algo, n_best_algo + n_worst_algo + 1]
+                            )
+                            break
+
+            n_sign_lines = len(significance_lines)
+            plot_height = 10 + 5
+
+            if len(result_cluster) > 1:
+                ax = axes[list_n, cell_n]
+            else:
+                ax = axes[cell_n]
+            ax.set_title(f"{x_axis[list_n]} x {y_axis[cell_n]}", pad=0, y=-0.18)
+            ax.get_yaxis().set_visible(False)
+            ax.set_xlim(
+                min_score - (max_score - min_score) * 0.1,
+                max_score + (max_score - min_score) * 0.1,
+            )
+            ax.set_ylim(0, plot_height)
+            ax.spines["bottom"].set_position(("data", 0.0))
+            ax.spines[["top", "left", "right"]].set_visible(False)
+            ax.invert_xaxis()
+
+            for algo in range(len(scoreframe["Estimate"])):
+                ax.plot(
+                    [scoreframe["Estimate"][algo], scoreframe["Estimate"][algo]],
+                    [0, plot_height - 6],
+                    "-",
+                    lw=2,
+                    label="_not in legend",
+                    color=color_dict[scoreframe["algorithm"][algo]],
+                )
+                ax.text(
+                    scoreframe["Estimate"][algo],
+                    plot_height - 3,
+                    scoreframe["algorithm"][algo],
+                    horizontalalignment="center",
+                    verticalalignment="bottom",
+                )
+                ax.text(
+                    scoreframe["Estimate"][algo],
+                    plot_height - 5,
+                    np.round(scoreframe["Estimate"][algo], 2),
+                    horizontalalignment="center",
+                    verticalalignment="bottom",
+                )
+            for n_line, line in enumerate(significance_lines):
+                if scoreframe["Estimate"][line[0]] == scoreframe["Estimate"][line[1]]:
+                    ax.plot(
+                        [
+                            scoreframe["Estimate"][line[0]],
+                            scoreframe["Estimate"][line[1]],
+                        ],
+                        [
+                            10 / (n_sign_lines + 1) * (n_line + 1) - 0.5,
+                            10 / (n_sign_lines + 1) * (n_line + 1) + 0.5,
+                        ],
+                        "-",
+                        lw=2,
+                        label="_not in legend",
+                        color="gray",
+                    )
+                else:
+                    ax.plot(
+                        [
+                            scoreframe["Estimate"][line[0]],
+                            scoreframe["Estimate"][line[1]],
+                        ],
+                        [
+                            10 / (n_sign_lines + 1) * (n_line + 1),
+                            10 / (n_sign_lines + 1) * (n_line + 1),
+                        ],
+                        "-",
+                        lw=6,
+                        label="_not in legend",
+                        color="gray",
+                    )
+
+    plt.show()
