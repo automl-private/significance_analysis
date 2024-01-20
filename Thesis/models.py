@@ -323,44 +323,40 @@ def glrt(
         }
 
 
-def model(formula: str, data: pd.DataFrame, system_id: str = "algorithm"):
-    if "|" in formula:
-        model = Lmer(
-            formula=formula,
-            data=data,
-        )
-
-        model.fit(
-            factors={system_id: list(data[system_id].unique())},
-            REML=False,
-            summarize=False,
-            verbose=False,
-        )
-    else:
+def model(
+    formula: str, data: pd.DataFrame, system_id: str = "algorithm", factor: str = None
+):
+    if not "|" in formula:
         data["dummy"] = "0"
-        data.loc[0, "dummy"] = "1"
-        model = Lmer(
-            formula=formula + "+(1|dummy)",
-            data=data,
-        )
+        data.at[data.index[0], "dummy"] = "1"
+        formula += "+(1|dummy)"
+    model = Lmer(
+        formula=formula,
+        data=data,
+    )
+    factors = {system_id: list(data[system_id].unique())}
+    if factor:
+        factors[factor] = list(data[factor].unique())
+    model.fit(
+        factors=factors,
+        REML=False,
+        summarize=False,
+        verbose=False,
+    )
 
-        model.fit(
-            factors={system_id: list(data[system_id].unique())},
-            REML=False,
-            summarize=False,
-            verbose=False,
-        )
-        # model = Lm(
-        #     formula=formula,
-        #     data=data,
-        # )
-        # model.fit(verbose=False, summarize=False)
+    # model = Lm(
+    #     formula=formula,
+    #     data=data,
+    # )
+    # model.fit(verbose=False, summarize=False)
     return model
 
 
 def create_cd_cluster(
-    result_cluster, x_axis, y_axis
+    result_cluster,
 ):  #:list[list[(pd.DataFrame,pd.DataFrame)]],x_axis:list[str],y_axis:list[str]):
+    x_axis = list(result_cluster.keys())
+    y_axis = list(list(result_cluster.values())[0].keys())
     color_dict = {
         "random_search": "red",
         "hyperband": "green",
@@ -369,15 +365,24 @@ def create_cd_cluster(
         "RS": "red",
         "HB": "green",
         "PB": "blue",
+        "RS+Prior": "pink",
+        "BO": "gold",
+        "PiBO": "brown",
+        "BOHB": "green",
+        "PriorBand+BO": "purple",
     }
 
     _, axes = plt.subplots(
-        len(result_cluster),
-        len(result_cluster[0]),
-        figsize=(10, 10 * len(result_cluster[0]) / 3),
+        len(result_cluster.values()),
+        len(list(result_cluster.values())[0].values()),
+        figsize=(
+            10 * len(list(result_cluster.values())[0].values()) / 3,
+            10 * len(result_cluster.values()) / 3,
+        ),
     )
-    for list_n, list_e in enumerate(result_cluster):
-        for cell_n, cell in enumerate(list_e):
+
+    for list_n, list_e in enumerate(result_cluster.values()):
+        for cell_n, cell in enumerate(list_e.values()):
             scoreframe = cell[0].sort_values(by=["Estimate"])[["algorithm", "Estimate"]]
             contrasts = cell[1]
             for pair in contrasts["Contrast"]:
@@ -404,6 +409,10 @@ def create_cd_cluster(
                 for n_worst_algo, worst_algo in reversed(
                     list(enumerate(scoreframe["algorithm"][n_best_algo + 1 :]))
                 ):
+                    if "+" in worst_algo and not "(" in worst_algo:
+                        worst_algo = f"({worst_algo})"
+                    if "+" in best_algo and not "(" in best_algo:
+                        best_algo = f"({best_algo})"
                     significance = contrastframe.loc[
                         (
                             (contrastframe["algorithm_1"] == best_algo)
@@ -443,7 +452,7 @@ def create_cd_cluster(
             ax.spines["bottom"].set_position(("data", 0.0))
             ax.spines[["top", "left", "right"]].set_visible(False)
             ax.invert_xaxis()
-
+            texts = []
             for algo in range(len(scoreframe["Estimate"])):
                 ax.plot(
                     [scoreframe["Estimate"][algo], scoreframe["Estimate"][algo]],
@@ -453,19 +462,29 @@ def create_cd_cluster(
                     label="_not in legend",
                     color=color_dict[scoreframe["algorithm"][algo]],
                 )
-                ax.text(
-                    scoreframe["Estimate"][algo],
-                    plot_height - 3,
-                    scoreframe["algorithm"][algo],
-                    horizontalalignment="center",
-                    verticalalignment="bottom",
+                texts.append(
+                    ax.text(
+                        # Names
+                        scoreframe["Estimate"][algo],
+                        plot_height - 3,
+                        scoreframe["algorithm"][algo],
+                        horizontalalignment="left",
+                        verticalalignment="baseline",
+                        rotation=45,
+                        rotation_mode="anchor",
+                    )
                 )
-                ax.text(
-                    scoreframe["Estimate"][algo],
-                    plot_height - 5,
-                    np.round(scoreframe["Estimate"][algo], 2),
-                    horizontalalignment="center",
-                    verticalalignment="bottom",
+                texts.append(
+                    ax.text(
+                        # Scores
+                        scoreframe["Estimate"][algo],
+                        plot_height - 4.5,
+                        np.round(scoreframe["Estimate"][algo], 2),
+                        horizontalalignment="left",
+                        verticalalignment="baseline",
+                        rotation=45,
+                        rotation_mode="anchor",
+                    )
                 )
             for n_line, line in enumerate(significance_lines):
                 if scoreframe["Estimate"][line[0]] == scoreframe["Estimate"][line[1]]:
@@ -498,5 +517,5 @@ def create_cd_cluster(
                         label="_not in legend",
                         color="gray",
                     )
-
+            # adjust_text(texts, only_move={'points':'y', 'texts':'y'}, arrowprops=dict(arrowstyle="->", color='r', lw=0.5))
     plt.show()
