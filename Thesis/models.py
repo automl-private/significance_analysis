@@ -24,7 +24,7 @@ pd.set_option("display.width", 10000)
 
 
 def load_priorband_data():
-    df = pd.read_parquet("priorband_single.parquet")
+    df = pd.read_parquet("datasets/priorband_single.parquet")
     df = df.reset_index()
     df_collection = []
     for seed_nr in range(50):
@@ -324,7 +324,11 @@ def glrt(
 
 
 def model(
-    formula: str, data: pd.DataFrame, system_id: str = "algorithm", factor: str = None
+    formula: str,
+    data: pd.DataFrame,
+    system_id: str = "algorithm",
+    factor: str = None,
+    factor_list: list[str] = None,
 ):
     if not "|" in formula:
         data["dummy"] = "0"
@@ -337,6 +341,9 @@ def model(
     factors = {system_id: list(data[system_id].unique())}
     if factor:
         factors[factor] = list(data[factor].unique())
+    if factor_list:
+        for factor in factor_list:
+            factors[factor] = list(data[factor].unique())
     model.fit(
         factors=factors,
         REML=False,
@@ -353,10 +360,10 @@ def model(
 
 
 def create_cd_cluster(
-    result_cluster,
+    result_cluster, show: bool = True
 ):  #:list[list[(pd.DataFrame,pd.DataFrame)]],x_axis:list[str],y_axis:list[str]):
     x_axis = list(result_cluster.keys())
-    y_axis = list(list(result_cluster.values())[0].keys())
+
     color_dict = {
         "random_search": "red",
         "hyperband": "green",
@@ -372,7 +379,7 @@ def create_cd_cluster(
         "PriorBand+BO": "purple",
     }
 
-    _, axes = plt.subplots(
+    fig, axes = plt.subplots(
         len(result_cluster.values()),
         len(list(result_cluster.values())[0].values()),
         figsize=(
@@ -381,7 +388,8 @@ def create_cd_cluster(
         ),
     )
 
-    for list_n, list_e in enumerate(result_cluster.values()):
+    for list_n, (list_k, list_e) in enumerate(result_cluster.items()):
+        y_axis = list(result_cluster[list_k].keys())
         for cell_n, cell in enumerate(list_e.values()):
             scoreframe = cell[0].sort_values(by=["Estimate"])[["algorithm", "Estimate"]]
             contrasts = cell[1]
@@ -401,8 +409,6 @@ def create_cd_cluster(
 
             min_score = scoreframe["Estimate"][0]
             max_score = scoreframe["Estimate"][len(scoreframe["Estimate"]) - 1]
-
-            # algo_lines_x = scoreframe["Estimate"].values.tolist()
 
             significance_lines = []
             for n_best_algo, best_algo in enumerate(scoreframe["algorithm"]):
@@ -440,8 +446,10 @@ def create_cd_cluster(
 
             if len(result_cluster) > 1:
                 ax = axes[list_n, cell_n]
-            else:
+            elif len(list_e) > 1:
                 ax = axes[cell_n]
+            else:
+                ax = axes
             ax.set_title(f"{x_axis[list_n]} x {y_axis[cell_n]}", pad=0, y=-0.18)
             ax.get_yaxis().set_visible(False)
             ax.set_xlim(
@@ -517,5 +525,6 @@ def create_cd_cluster(
                         label="_not in legend",
                         color="gray",
                     )
-            # adjust_text(texts, only_move={'points':'y', 'texts':'y'}, arrowprops=dict(arrowstyle="->", color='r', lw=0.5))
-    plt.show()
+    if show:
+        plt.show()
+    return fig, axes
