@@ -31,9 +31,9 @@ def load_priorband_data():
         partial_df["value"] = df[f"seed-{seed_nr}"]
         partial_df["seed"] = seed_nr
         df_collection.append(partial_df)
-        print(f"⚙️ Seed {seed_nr+1}/50        ", end="\r", flush=True)
+        print(f"{f'⚙️ Seed {seed_nr+1}/50':<100}", end="\r", flush=True)
     complete_df = pd.concat(df_collection, ignore_index=True)
-    print("✅ Loading data done     ")
+    print(f"{f'✅ Loading data done':<100}")
     return complete_df
 
 
@@ -80,13 +80,13 @@ def add_regret(df: pd.DataFrame, benchmark_variable, normalize: False):
         return abs(best[row[benchmark_variable]] - row["value"])
 
     if normalize:
-        print("⚙️ Adding regret       ", end="\r", flush=True)
+        print(f"⚙️ {'Adding regret':<100}", end="\r", flush=True)
         df["regret"] = df.apply(calculate_simple_regret, axis=1, normalize=True)
-        print("✅ Adding regret done                      ")
+        print(f"{'✅ Adding regret done':<100}")
     else:
-        print("⚙️ Adding normalized regret       ", end="\r", flush=True)
+        print(f"{'⚙️ Adding normalized regret':<100}", end="\r", flush=True)
         df["norm_regret"] = df.apply(calculate_simple_regret, axis=1, normalize=False)
-        print("✅ Adding normalized regret done                      ")
+        print(f"{'✅ Adding normalized regret done':<100}")
     return df
 
 
@@ -111,7 +111,7 @@ def create_incumbent(
             ]
             for seed in df_at_point["seed"].unique():
                 print(
-                    f"⚙️ Fidelity {n_f+1}/{len(f_space)}, Benchmark {b_n+1}/{len(benchmarks)}          ",
+                    f"{f'⚙️ Fidelity {n_f+1}/{len(f_space)}, Benchmark {b_n+1}/{len(benchmarks)}':<100}",
                     end="\r",
                     flush=True,
                 )
@@ -278,7 +278,7 @@ def get_dataset(
         data, f_space, benchmarks_split, algos, benchmark_variable, algorithm_variable
     )
     if rel_ranks:
-        print("⚙️ Adding relative ranks             ", end="\r", flush=True)
+        print(f"{'⚙️ Adding relative ranks':<100}", end="\r", flush=True)
         data["rel_rank"] = data.apply(
             add_rel_ranks,
             data=data,
@@ -286,15 +286,15 @@ def get_dataset(
             time=time_variable,
             axis=1,
         )
-    print("⚙️ Renaming algorithms             ", end="\r", flush=True)
+    print(f"{'⚙️ Renaming algorithms':<100}", end="\r", flush=True)
     data[algorithm_variable] = data.apply(rename_algos, algo_dict=label_dict, axis=1)
-    print("✅ Dataset loaded                   ", end="\r", flush=True)
+    print(f"{'✅ Dataset loaded':<100}", end="\r", flush=True)
     data.to_parquet(f"datasets/{dataset_name}.parquet")
     return data
 
 
 def convert_to_autorank(
-    data: pd.DataFrame(),
+    data: pd.DataFrame,
     algorithm_variable: str = "algorithm",
     value_variable: str = "value",
     min_f=1,
@@ -307,7 +307,5 @@ def convert_to_autorank(
             (data[algorithm_variable] == algo)
             & (data["used_fidelity"] <= max_f)
             & (data["used_fidelity"] >= min_f)
-        ][value_variable].reset_index(
-            drop=True
-        )  # .apply(negate)
+        ][value_variable].reset_index(drop=True)
     return df_autorank
