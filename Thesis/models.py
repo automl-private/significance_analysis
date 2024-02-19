@@ -350,12 +350,6 @@ def model(
         summarize=False,
         verbose=False,
     )
-
-    # model = Lm(
-    #     formula=formula,
-    #     data=data,
-    # )
-    # model.fit(verbose=False, summarize=False)
     return model
 
 
