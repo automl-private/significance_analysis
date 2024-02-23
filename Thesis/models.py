@@ -8,7 +8,9 @@ import tabulate
 from autorank import autorank, create_report, plot_stats
 from matplotlib.gridspec import GridSpec
 from matplotlib.ticker import MultipleLocator"""
+import math
 import typing
+from collections import namedtuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -522,3 +524,289 @@ def create_cd_cluster(
     if show:
         plt.show()
     return fig, axes
+
+
+def get_sorted_rank_groups(result, reverse):
+    if reverse:
+        names = result.rankdf.iloc[::-1].index.to_list()
+        if result.cd is not None:
+            sorted_ranks = result.rankdf.iloc[::-1].meanrank
+            critical_difference = result.cd
+        else:
+            sorted_ranks = result.rankdf.iloc[::-1]["mean"]
+            critical_difference = (
+                result.rankdf.ci_upper[0] - result.rankdf.ci_lower[0]
+            ) / 2
+    else:
+        names = result.rankdf.index.to_list()
+        if result.cd is not None:
+            sorted_ranks = result.rankdf.meanrank
+            critical_difference = result.cd
+        else:
+            sorted_ranks = result.rankdf["mean"]
+            critical_difference = (
+                result.rankdf.ci_upper[0] - result.rankdf.ci_lower[0]
+            ) / 2
+
+    groups = []
+    cur_max_j = -1
+    for i, _ in enumerate(sorted_ranks):
+        max_j = None
+        for j in range(i + 1, len(sorted_ranks)):
+            if abs(sorted_ranks[i] - sorted_ranks[j]) <= critical_difference:
+                max_j = j
+                # print(i, j)
+        if max_j is not None and max_j > cur_max_j:
+            cur_max_j = max_j
+            groups.append((i, max_j))
+    return sorted_ranks, names, groups
+
+
+class RankResult(
+    namedtuple(
+        "RankResult",
+        (
+            "rankdf",
+            "pvalue",
+            "cd",
+            "omnibus",
+            "posthoc",
+            "all_normal",
+            "pvals_shapiro",
+            "homoscedastic",
+            "pval_homogeneity",
+            "homogeneity_test",
+            "alpha",
+            "alpha_normality",
+            "num_samples",
+            "posterior_matrix",
+            "decision_matrix",
+            "rope",
+            "rope_mode",
+            "effect_size",
+            "force_mode",
+        ),
+    )
+):
+    __slots__ = ()
+
+    def __str__(self):
+        return (
+            "RankResult(rankdf=\n%s\n"
+            "pvalue=%s\n"
+            "cd=%s\n"
+            "omnibus=%s\n"
+            "posthoc=%s\n"
+            "all_normal=%s\n"
+            "pvals_shapiro=%s\n"
+            "homoscedastic=%s\n"
+            "pval_homogeneity=%s\n"
+            "homogeneity_test=%s\n"
+            "alpha=%s\n"
+            "alpha_normality=%s\n"
+            "num_samples=%s\n"
+            "posterior_matrix=\n%s\n"
+            "decision_matrix=\n%s\n"
+            "rope=%s\n"
+            "rope_mode=%s\n"
+            "effect_size=%s\n"
+            "force_mode=%s)"
+            % (
+                self.rankdf,
+                self.pvalue,
+                self.cd,
+                self.omnibus,
+                self.posthoc,
+                self.all_normal,
+                self.pvals_shapiro,
+                self.homoscedastic,
+                self.pval_homogeneity,
+                self.homogeneity_test,
+                self.alpha,
+                self.alpha_normality,
+                self.num_samples,
+                self.posterior_matrix,
+                self.decision_matrix,
+                self.rope,
+                self.rope_mode,
+                self.effect_size,
+                self.force_mode,
+            )
+        )
+
+
+def cd_diagram(
+    result,
+    reverse,
+    ax,
+    width,
+):
+    """
+    Creates a Critical Distance diagram.
+    """
+
+    def plot_line(line, color="k", **kwargs):
+        ax.plot(
+            [pos[0] / width for pos in line],
+            [pos[1] / height for pos in line],
+            color=color,
+            **kwargs,
+        )
+
+    def plot_text(x, y, s, *args, **kwargs):
+        ax.text(x / width, y / height, s, *args, **kwargs)
+
+    if not isinstance(result, typing.Tuple[pd.DataFrame, pd.DataFrame]):
+        result_copy = RankResult(**result._asdict())
+        result_copy = result_copy._replace(
+            rankdf=result.rankdf.sort_values(by="meanrank")
+        )
+        sorted_ranks, names, groups = get_sorted_rank_groups(result_copy, reverse)
+        cd = result.cd
+    else:
+        result = list(result)
+        estimates = result[0].set_index("algorithm")
+        estimates = estimates.sort_values(by="Estimate")
+        sorted_ranks = pd.DataFrame()
+        sorted_ranks = estimates["Estimate"]
+        sorted_ranks.name = "meanrank"
+        estimates["ci_upper"] = estimates["2.5_ci"]
+        estimates["ci_lower"] = estimates["97.5_ci"]
+        names = estimates.index.values.tolist()
+        names_con = [name if "+" not in name else f"({name})" for name in names]
+        contrasts = result[1]
+        for pair in contrasts["Contrast"]:
+            contrasts.loc[contrasts["Contrast"] == pair, "algorithm_1"] = pair.split(
+                " - "
+            )[0]
+            contrasts.loc[contrasts["Contrast"] == pair, "algorithm_2"] = pair.split(
+                " - "
+            )[1]
+        contrasts = contrasts.drop("Contrast", axis=1)
+        column = contrasts.pop("algorithm_2")
+        contrasts.insert(0, "algorithm_2", column)
+        column = contrasts.pop("algorithm_1")
+        contrasts.insert(0, "algorithm_1", column)
+        groups = []
+        for _, row in contrasts.iterrows():
+            algos = (row["algorithm_1"], row["algorithm_2"])
+            if row["P-val"] > 0.05:
+                group = [names_con.index(algos[0]), names_con.index(algos[1])]
+                group.sort()
+                groups.append((group[0], group[1]))
+        new_groups = []
+        for group in groups:
+            if not any(
+                group[0] >= g[0] and group[1] <= g[1] and group != g for g in groups
+            ):
+                new_groups.append(group)
+        groups = new_groups
+        cd = None  # (estimates.ci_upper[2] - estimates.ci_lower[2]) / 2
+
+    lowv = min(1, int(math.floor(min(sorted_ranks))))
+    highv = max(len(sorted_ranks), int(math.ceil(max(sorted_ranks))))
+    cline = 0.4
+    textspace = 1
+    scalewidth = width - 2 * textspace
+
+    def rankpos(rank):
+        if not reverse:
+            relative_rank = rank - lowv
+        else:
+            relative_rank = highv - rank
+        return textspace + scalewidth / (highv - lowv) * relative_rank
+
+    linesblank = 0.2 + 0.2 + (len(groups) - 1) * 0.1
+
+    # add scale
+    distanceh = 0.25
+    cline += distanceh
+
+    # calculate height needed height of an image
+    minnotsignificant = max(2 * 0.2, linesblank)
+    height = cline + ((len(sorted_ranks) + 1) / 2) * 0.2 + minnotsignificant
+
+    if ax is None:
+        fig = plt.figure(figsize=(width, height))
+        fig.set_facecolor("white")
+        ax = fig.add_axes([0, 0, 1, 1])  # reverse y axis
+    ax.set_axis_off()
+
+    # Upper left corner is (0,0).
+    ax.plot([0, 1], [0, 1], c="w")
+    ax.set_xlim(0, 1)
+    ax.set_ylim(1, 0)
+
+    plot_line([(textspace, cline), (width - textspace, cline)], linewidth=0.7)
+
+    bigtick = 0.1
+    smalltick = 0.05
+
+    # tick = None
+    for a in list(np.arange(lowv, highv, 0.5)) + [highv]:
+        tick = smalltick
+        if a == int(a):
+            tick = bigtick
+        plot_line([(rankpos(a), cline - tick / 2), (rankpos(a), cline)], linewidth=0.7)
+
+    for a in range(lowv, highv + 1):
+        plot_text(rankpos(a), cline - tick / 2 - 0.05, str(a), ha="center", va="bottom")
+
+    for i in range(math.ceil(len(sorted_ranks) / 2)):
+        chei = cline + minnotsignificant + i * 0.2
+        plot_line(
+            [
+                (rankpos(sorted_ranks[i]), cline),
+                (rankpos(sorted_ranks[i]), chei),
+                (textspace - 0.1, chei),
+            ],
+            linewidth=0.7,
+        )
+        plot_text(textspace - 0.2, chei, names[i], ha="right", va="center")
+
+    for i in range(math.ceil(len(sorted_ranks) / 2), len(sorted_ranks)):
+        chei = cline + minnotsignificant + (len(sorted_ranks) - i - 1) * 0.2
+        plot_line(
+            [
+                (rankpos(sorted_ranks[i]), cline),
+                (rankpos(sorted_ranks[i]), chei),
+                (textspace + scalewidth + 0.1, chei),
+            ],
+            linewidth=0.7,
+        )
+        plot_text(textspace + scalewidth + 0.2, chei, names[i], ha="left", va="center")
+
+    # upper scale
+    if cd:
+        if not reverse:
+            begin, end = rankpos(lowv), rankpos(lowv + cd)
+        else:
+            begin, end = rankpos(highv), rankpos(highv - cd)
+
+        plot_line([(begin, distanceh), (end, distanceh)], linewidth=0.7)
+        plot_line(
+            [(begin, distanceh + bigtick / 2), (begin, distanceh - bigtick / 2)],
+            linewidth=0.7,
+        )
+        plot_line(
+            [(end, distanceh + bigtick / 2), (end, distanceh - bigtick / 2)],
+            linewidth=0.7,
+        )
+
+        plot_text((begin + end) / 2, distanceh - 0.05, "CD", ha="center", va="bottom")
+
+    # no-significance lines
+    side = 0.05
+    no_sig_height = 0.1
+    start = cline + 0.2
+    for l, r in groups:
+        plot_line(
+            [
+                (rankpos(sorted_ranks[l]) - side, start),
+                (rankpos(sorted_ranks[r]) + side, start),
+            ],
+            linewidth=2.5,
+        )
+        start += no_sig_height
+
+    return ax
