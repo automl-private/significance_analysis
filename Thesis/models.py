@@ -15,7 +15,7 @@ from collections import namedtuple
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from pymer4.models import Lmer
+from pymer4.models import Lm, Lmer
 from scipy import stats
 from scipy.stats import rankdata
 
@@ -331,11 +331,17 @@ def model(
     system_id: str = "algorithm",
     factor: str = None,
     factor_list: list[str] = None,
+    dummy=True,
 ):
     if not "|" in formula:
-        data["dummy"] = "0"
-        data.at[data.index[0], "dummy"] = "1"
-        formula += "+(1|dummy)"
+        if dummy:
+            data["dummy"] = "0"
+            data.at[data.index[0], "dummy"] = "1"
+            formula += "+(1|dummy)"
+        else:
+            mod = Lm(formula, data)
+            mod.fit(cluster=data[system_id], verbose=False, summarize=False)
+            return mod
     model = Lmer(
         formula=formula,
         data=data,
@@ -638,8 +644,8 @@ class RankResult(
 def cd_diagram(
     result,
     reverse,
-    ax,
     width,
+    ax=None,
 ):
     """
     Creates a Critical Distance diagram.
@@ -653,10 +659,14 @@ def cd_diagram(
             **kwargs,
         )
 
-    def plot_text(x, y, s, *args, **kwargs):
-        ax.text(x / width, y / height, s, *args, **kwargs)
+    def plot_text(x, y, s, rot=0, *args, **kwargs):
+        ax.text(x / width, y / height, s, rotation=rot, *args, **kwargs)
 
-    if not isinstance(result, typing.Tuple[pd.DataFrame, pd.DataFrame]):
+    if (
+        not isinstance(result, tuple)
+        or len(result) != 2
+        or not all(isinstance(df, pd.DataFrame) for df in result)
+    ):
         result_copy = RankResult(**result._asdict())
         result_copy = result_copy._replace(
             rankdf=result.rankdf.sort_values(by="meanrank")
@@ -703,8 +713,12 @@ def cd_diagram(
         groups = new_groups
         cd = None  # (estimates.ci_upper[2] - estimates.ci_lower[2]) / 2
 
-    lowv = min(1, int(math.floor(min(sorted_ranks))))
-    highv = max(len(sorted_ranks), int(math.ceil(max(sorted_ranks))))
+    if max(sorted_ranks) - min(sorted_ranks) < 1.5:
+        granularity = 0.25
+    else:
+        granularity = 0.5
+    lowv = (math.floor(min(sorted_ranks) / granularity)) * granularity
+    highv = (math.ceil(max(sorted_ranks) / granularity)) * granularity
     cline = 0.4
     textspace = 1
     scalewidth = width - 2 * textspace
@@ -719,17 +733,17 @@ def cd_diagram(
     linesblank = 0.2 + 0.2 + (len(groups) - 1) * 0.1
 
     # add scale
-    distanceh = 0.25
+    distanceh = 0.2 if cd else -0.0
     cline += distanceh
 
     # calculate height needed height of an image
     minnotsignificant = max(2 * 0.2, linesblank)
     height = cline + ((len(sorted_ranks) + 1) / 2) * 0.2 + minnotsignificant
 
-    if ax is None:
-        fig = plt.figure(figsize=(width, height))
-        fig.set_facecolor("white")
-        ax = fig.add_axes([0, 0, 1, 1])  # reverse y axis
+    if not ax:
+        fig_cd = plt.figure(figsize=(width, height))
+        fig_cd.set_facecolor("white")
+        ax = fig_cd.add_axes([0, 0, 1, 1])  # reverse y axis
     ax.set_axis_off()
 
     # Upper left corner is (0,0).
@@ -743,14 +757,42 @@ def cd_diagram(
     smalltick = 0.05
 
     # tick = None
-    for a in list(np.arange(lowv, highv, 0.5)) + [highv]:
-        tick = smalltick
-        if a == int(a):
-            tick = bigtick
-        plot_line([(rankpos(a), cline - tick / 2), (rankpos(a), cline)], linewidth=0.7)
+    if granularity == 0.25:
+        for a in list(np.arange(lowv, highv, 0.25)) + [lowv, highv]:
+            tick = smalltick
+            if a == int(a):
+                tick = bigtick
+            plot_line(
+                [(rankpos(a), cline - tick / 2), (rankpos(a), cline)], linewidth=0.7
+            )
 
-    for a in range(lowv, highv + 1):
-        plot_text(rankpos(a), cline - tick / 2 - 0.05, str(a), ha="center", va="bottom")
+        numbers = list(np.arange(lowv, highv + granularity, granularity))
+        for a in numbers:
+            plot_text(
+                rankpos(a),
+                cline - tick / 2 - 0.05,
+                str(int(a) if a == int(a) else a),
+                rot=90 if len(numbers) > 7 else 0,
+                ha="center",
+                va="bottom",
+            )
+    else:
+        for a in list(np.arange(lowv, highv, 0.5)) + [lowv, highv]:
+            tick = smalltick
+            if a == int(a):
+                tick = bigtick
+            plot_line(
+                [(rankpos(a), cline - tick / 2), (rankpos(a), cline)], linewidth=0.7
+            )
+
+        for a in list(np.arange(lowv, highv + granularity, 0.5)):
+            plot_text(
+                rankpos(a),
+                cline - tick / 2 - 0.05,
+                str(int(a) if a == int(a) else a),
+                ha="center",
+                va="bottom",
+            )
 
     for i in range(math.ceil(len(sorted_ranks) / 2)):
         chei = cline + minnotsignificant + i * 0.2
@@ -808,5 +850,3 @@ def cd_diagram(
             linewidth=2.5,
         )
         start += no_sig_height
-
-    return ax
