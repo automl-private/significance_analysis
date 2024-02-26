@@ -144,39 +144,6 @@ def create_incumbent(
     return dataset
 
 
-# def create_incumbent_v2(
-#     data, f_space, benchmarks, algos, benchmark_variable, algorithm_variable
-# ):
-#     data = data.loc[
-#         (data[algorithm_variable].isin(algos))
-#         & (data[benchmark_variable].isin(benchmarks))
-#     ]
-
-#     combinations = list(
-#         itertools.product(
-#             data[benchmark_variable], data[algorithm_variable], data["seed"], f_space
-#         )
-#     )
-#     print(combinations)
-#     new_data = pd.DataFrame(
-#         combinations,
-#         columns=[benchmark_variable, algorithm_variable, "seed", "used_fidelity"],
-#     )
-
-#     def incumbent_row(row, data):
-#         return max(
-#             data.loc[
-#                 (data[benchmark_variable] == row[benchmark_variable])
-#                 & (data[algorithm_variable] == row[algorithm_variable])
-#                 & (data["seed"] == row["seed"])
-#                 & (data["used_fidelity"] <= fidelity)
-#             ]["value"]
-#         )
-
-#     for fidelity in f_space:
-#         new_data["value"] = new_data.apply(incumbent_row, data=data, axis=1)
-
-
 std_benchmarks = [
     "jahs_cifar10",
     "jahs_colorectal_histology",
