@@ -713,7 +713,7 @@ def cd_diagram(
             ):
                 new_groups.append(group)
         groups = new_groups
-        cd = (estimates.ci_upper[2] - estimates.ci_lower[2]) / 2
+        cd = (estimates.ci_upper[0] - estimates.ci_lower[0]) / 2
 
     if max(sorted_ranks) - min(sorted_ranks) < 1.5:
         granularity = 0.25
