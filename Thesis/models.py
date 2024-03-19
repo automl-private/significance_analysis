@@ -713,12 +713,13 @@ def cd_diagram(
             ):
                 new_groups.append(group)
         groups = new_groups
-        cd = (estimates.ci_upper[0] - estimates.ci_lower[0]) / 2
+        cd = np.abs(estimates.ci_lower[0] - estimates.ci_upper[0]) / 2
 
     if max(sorted_ranks) - min(sorted_ranks) < 1.5:
         granularity = 0.25
     else:
         granularity = 0.5
+
     lowv = (math.floor(min(sorted_ranks) / granularity)) * granularity
     highv = (math.ceil(max(sorted_ranks) / granularity)) * granularity
     cline = 0.4
@@ -826,7 +827,6 @@ def cd_diagram(
             begin, end = rankpos(lowv), rankpos(lowv + cd)
         else:
             begin, end = rankpos(highv), rankpos(highv - cd)
-
         plot_line([(begin, distanceh), (end, distanceh)], linewidth=0.7)
         plot_line(
             [(begin, distanceh + bigtick / 2), (begin, distanceh - bigtick / 2)],
