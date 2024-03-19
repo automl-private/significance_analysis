@@ -15,6 +15,8 @@ from collections import namedtuple
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from autorank import autorank
+from dataset_management import convert_to_autorank
 from pymer4.models import Lm, Lmer
 from scipy import stats
 from scipy.stats import rankdata
@@ -314,7 +316,7 @@ def glrt(
     p = 1 - stats.chi2.cdf(chi_square, df=delta_params)
     if names:
         print(
-            f"{names[0]} ({round(mod1.logLike,2)}) {'==' if p>0.05 else '>>' if mod1.logLike>mod2.logLike else '<<' if mod1.logLike<mod2.logLike else '=='} {names[1]} ({round(mod2.logLike,2)})"
+            f"{names[0]} ({round(mod1.logLike,2)}) {'==' if p>0.05 or mod1.logLike==mod2.logLike else '>>' if mod1.logLike>mod2.logLike else '<<'} {names[1]} ({round(mod2.logLike,2)})"
         )
         print(f"Chi-Square: {chi_square}, P-Value: {p}")
     if returns:
@@ -539,7 +541,7 @@ def get_sorted_rank_groups(result, reverse):
             sorted_ranks = result.rankdf.iloc[::-1].meanrank
             critical_difference = result.cd
         else:
-            sorted_ranks = result.rankdf.iloc[::-1]["mean"]
+            sorted_ranks = result.rankdf.iloc[::-1].meanrank
             critical_difference = (
                 result.rankdf.ci_upper[0] - result.rankdf.ci_lower[0]
             ) / 2
@@ -549,7 +551,7 @@ def get_sorted_rank_groups(result, reverse):
             sorted_ranks = result.rankdf.meanrank
             critical_difference = result.cd
         else:
-            sorted_ranks = result.rankdf["mean"]
+            sorted_ranks = result.rankdf.meanrank
             critical_difference = (
                 result.rankdf.ci_upper[0] - result.rankdf.ci_lower[0]
             ) / 2
@@ -711,7 +713,7 @@ def cd_diagram(
             ):
                 new_groups.append(group)
         groups = new_groups
-        cd = None  # (estimates.ci_upper[2] - estimates.ci_lower[2]) / 2
+        cd = (estimates.ci_upper[2] - estimates.ci_lower[2]) / 2
 
     if max(sorted_ranks) - min(sorted_ranks) < 1.5:
         granularity = 0.25
@@ -850,3 +852,95 @@ def cd_diagram(
             linewidth=2.5,
         )
         start += no_sig_height
+
+
+class bt_plot:
+    def __init__(self, slices, rows, dataset, algorithm_var, budget_var):
+        self.algorithm = algorithm_var
+        self.budget = budget_var
+        self.slices = slices
+        self.dataset = dataset.loc[
+            (
+                dataset[self.budget]
+                > min(item for sublist in self.slices for item in sublist)
+            )
+            & (
+                dataset[self.budget]
+                <= max(item for sublist in self.slices for item in sublist)
+            )
+        ]
+        self.df_slices = []
+
+        def grouper(row):
+            for data_slice in self.slices:
+                if row[self.budget] > data_slice[0] and row[self.budget] <= data_slice[1]:
+                    return f"{data_slice[0]}-{data_slice[1]}"
+
+        for data_slice in self.slices:
+            self.dataset[f"{self.budget}_group"] = self.dataset.apply(grouper, axis=1)
+            self.df_slices.append(
+                dataset.loc[
+                    (dataset[self.budget] > data_slice[0])
+                    & (dataset[self.budget] <= data_slice[1])
+                ]
+            )
+        self.fig, self.axs = plt.subplots(
+            rows, len(self.df_slices), figsize=(4.5 * len(self.slices), 2 * rows)
+        )
+        plt.close(self.fig)
+        self.axs = [self.axs] if rows == 1 else self.axs.tolist()
+        if len(self.slices) == 1:
+            self.axs = [[item] for item in self.axs]
+
+    def change_row(
+        self, row: int, lmem_formula: str, globality: bool = False, loss: str = "value"
+    ):
+        if not lmem_formula:
+            for cell_n in range(len(self.axs[row])):
+                self.axs[row][cell_n].cla()
+                autorank_data = convert_to_autorank(
+                    self.df_slices[cell_n],
+                    algorithm_variable=self.algorithm,
+                    value_variable=loss,
+                    budget_variable=self.budget,
+                )
+                autorank_res = autorank(autorank_data)
+                cd_diagram(autorank_res, reverse=False, ax=self.axs[row][cell_n], width=5)
+        else:
+            if globality:
+                post_hocs = model(
+                    formula=f"{loss}~{lmem_formula}",
+                    data=self.dataset,
+                    factor_list=["algorithm", f"{self.budget}_group"],
+                ).post_hoc(
+                    marginal_vars=self.algorithm, grouping_vars=f"{self.budget}_group"
+                )
+                for cell_n in range(len(self.axs[row])):
+                    self.axs[row][cell_n].cla()
+                    post_hoc = (
+                        post_hocs[0].loc[
+                            post_hocs[0][f"{self.budget}_group"]
+                            == f"{self.slices[cell_n][0]}-{self.slices[cell_n][1]}"
+                        ],
+                        post_hocs[1].loc[
+                            post_hocs[1][f"{self.budget}_group"]
+                            == f"{self.slices[cell_n][0]}-{self.slices[cell_n][1]}"
+                        ],
+                    )
+                    cd_diagram(post_hoc, reverse=False, ax=self.axs[row][cell_n], width=5)
+            else:
+                for cell_n in range(len(self.axs[row])):
+                    self.axs[row][cell_n].cla()
+                    post_hocs = model(
+                        formula=f"{loss}~{lmem_formula}", data=self.df_slices[cell_n]
+                    ).post_hoc(marginal_vars=self.algorithm)
+                    cd_diagram(
+                        post_hocs, reverse=False, ax=self.axs[row][cell_n], width=5
+                    )
+        for cell_n in range(len(self.axs[row])):
+            self.axs[row][cell_n].set_title(
+                f"{'Autorank' if not lmem_formula else 'LMEM'} ({loss}) {' (global)' if globality else ''} on slice {self.slices[cell_n]}"
+            )
+
+    def show(self):
+        return self.fig

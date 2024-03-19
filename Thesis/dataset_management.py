@@ -264,6 +264,7 @@ def convert_to_autorank(
     data: pd.DataFrame,
     algorithm_variable: str = "algorithm",
     value_variable: str = "value",
+    budget_variable: str = "used_fidelity",
     min_f=1,
     max_f=24,
 ):
@@ -272,7 +273,7 @@ def convert_to_autorank(
     for algo in data[algorithm_variable].unique():
         df_autorank[algo] = -data[
             (data[algorithm_variable] == algo)
-            & (data["used_fidelity"] <= max_f)
-            & (data["used_fidelity"] >= min_f)
+            & (data[budget_variable] <= max_f)
+            & (data[budget_variable] >= min_f)
         ][value_variable].reset_index(drop=True)
     return df_autorank
