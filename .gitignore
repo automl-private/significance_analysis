@@ -9,3 +9,4 @@ significance_analysis_example/linear_fidelity_model.joblib
 significance_analysis_example/linear_fidelity_model.rds
 significance_analysis_example/no_fidelity_model.joblib
 significance_analysis_example/no_fidelity_model.rds
+.python-version
