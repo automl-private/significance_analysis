@@ -354,12 +354,7 @@ def model(
     if factor_list:
         for factor in factor_list:
             factors[factor] = list(data[factor].unique())
-    model.fit(
-        factors=factors,
-        REML=False,
-        summarize=False,
-        verbose=False,
-    )
+    model.fit(factors=factors, REML=False, summarize=False, verbose=False)
     return model
 
 
