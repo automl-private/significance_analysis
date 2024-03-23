@@ -19,7 +19,7 @@ from autorank import autorank
 from dataset_management import convert_to_autorank
 from pymer4.models import Lm, Lmer
 from scipy import stats
-from scipy.stats import rankdata
+from scipy.stats import rankdata, studentized_range
 
 pd.set_option("chained_assignment", None)
 pd.set_option("display.max_rows", 5000)
@@ -708,7 +708,14 @@ def cd_diagram(
             ):
                 new_groups.append(group)
         groups = new_groups
-        cd = np.abs(estimates.ci_lower[0] - estimates.ci_upper[0]) / 2
+        # t_stat=max(abs(contrasts.Estimate.min()),abs(contrasts.Estimate.min()))/contrasts.SE.min()
+        # p_hsd=1-studentized_range.cdf(t_stat*np.sqrt(2), k=len(estimates), df=contrasts.DF[0])
+        hsd = (
+            studentized_range.ppf(1 - 0.05, k=len(estimates), df=contrasts.DF[0])
+            / np.sqrt(2)
+            * contrasts.SE.min()
+        )
+        cd = hsd
 
     if max(sorted_ranks) - min(sorted_ranks) < 1.5:
         granularity = 0.25
@@ -792,6 +799,7 @@ def cd_diagram(
                 va="bottom",
             )
 
+    # Left half of algorithms and pointers
     for i in range(math.ceil(len(sorted_ranks) / 2)):
         chei = cline + minnotsignificant + i * 0.2
         plot_line(
@@ -804,6 +812,7 @@ def cd_diagram(
         )
         plot_text(textspace - 0.2, chei, names[i], ha="right", va="center")
 
+    # Right half of algorithms and pointers
     for i in range(math.ceil(len(sorted_ranks) / 2), len(sorted_ranks)):
         chei = cline + minnotsignificant + (len(sorted_ranks) - i - 1) * 0.2
         plot_line(
@@ -835,7 +844,7 @@ def cd_diagram(
         plot_text((begin + end) / 2, distanceh - 0.05, "CD", ha="center", va="bottom")
 
     # no-significance lines
-    side = 0.05
+    side = 0.007
     no_sig_height = 0.1
     start = cline + 0.2
     for l, r in groups:
@@ -845,6 +854,7 @@ def cd_diagram(
                 (rankpos(sorted_ranks[r]) + side, start),
             ],
             linewidth=2.5,
+            solid_capstyle="round",
         )
         start += no_sig_height
 
