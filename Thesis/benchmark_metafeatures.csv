@@ -1,15 +1,13 @@
-Name,code_name,# Vars,# cont. Vars,# cond. Vars,# cat. Vars,log int,int
-Multi-fidelity synthetic Hartmann 3,_,3,3,0,0,1,0
-Multi-fidelity synthetic Hartmann 6,_,6,6,0,0,1,0
-JAHS-Bench-201,jahs_fashion_mnist,14,2,0,8,0,1
-,jahs_cifar10,14,2,0,8,0,1
-,jahs_colorectal_histology,14,2,0,8,0,1
-lm1b_transformer_2048,lm1b_transformer_2048,4,4,0,0,0,1
-translatewmt_xformer_64,translatewmt_xformer_64,4,4,0,0,0,1
-cifar100_wideresenet_2048,cifar100_wideresnet_2048,4,4,0,0,0,0
-imagenet_resnet_512,imagenet_resnet_512,4,4,0,0,0,0
-lcbench,lcbench-126026,7,4,0,0,0,1
-,lcbench-167190,7,4,0,0,0,1
-,lcbench-168330,7,4,0,0,0,1
-,lcbench-168910,7,4,0,0,0,1
-,lcbench-189906,7,4,0,0,0,1
+Name,benchmark,n_Vars,n_cont_Vars,n_cond_Vars,n_cat_Vars,log_int_fid,int_fid
+JAHS-Bench-201,JAHS-FM,14,2,0,8,0,1
+,JAHS-C10,14,2,0,8,0,1
+,JAHS-CH,14,2,0,8,0,1
+lm1b_transformer_2048,PD1-LM1B,4,4,0,0,0,1
+translatewmt_xformer_64,PD1-WMT,4,4,0,0,0,1
+cifar100_wideresenet_2048,PD1-Cifar100,4,4,0,0,0,0
+imagenet_resnet_512,PD1-ImageNet,4,4,0,0,0,0
+lcbench,LC-126026,7,4,0,0,0,1
+,LC-167190,7,4,0,0,0,1
+,LC-168330,7,4,0,0,0,1
+,LC-168910,7,4,0,0,0,1
+,LC-189906,7,4,0,0,0,1

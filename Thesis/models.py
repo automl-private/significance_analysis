@@ -669,7 +669,7 @@ def cd_diagram(
             rankdf=result.rankdf.sort_values(by="meanrank")
         )
         sorted_ranks, names, groups = get_sorted_rank_groups(result_copy, reverse)
-        cd = result.cd
+        cd = [result.cd]
     else:
         result = list(result)
         estimates = result[0].set_index("algorithm")
@@ -710,15 +710,25 @@ def cd_diagram(
         groups = new_groups
         # t_stat=max(abs(contrasts.Estimate.min()),abs(contrasts.Estimate.min()))/contrasts.SE.min()
         # p_hsd=1-studentized_range.cdf(t_stat*np.sqrt(2), k=len(estimates), df=contrasts.DF[0])
-        hsd = (
-            studentized_range.ppf(1 - 0.05, k=len(estimates), df=contrasts.DF[0])
-            / np.sqrt(2)
-            * contrasts.SE.min()
-        )
+        hsd = [
+            (
+                studentized_range.ppf(1 - 0.05, k=len(estimates), df=contrasts.DF.max())
+                / np.sqrt(2)
+                * contrasts.SE.max()
+            ),
+            (
+                studentized_range.ppf(1 - 0.05, k=len(estimates), df=contrasts.DF.min())
+                / np.sqrt(2)
+                * contrasts.SE.min()
+            ),
+        ]
         cd = hsd
 
     if max(sorted_ranks) - min(sorted_ranks) < 1.5:
-        granularity = 0.25
+        if max(sorted_ranks) - min(sorted_ranks) < 0.75:
+            granularity = 0.125
+        else:
+            granularity = 0.25
     else:
         granularity = 0.5
 
@@ -760,44 +770,28 @@ def cd_diagram(
 
     bigtick = 0.1
     smalltick = 0.05
+    tinytick = 0.03
 
-    # tick = None
-    if granularity == 0.25:
-        for a in list(np.arange(lowv, highv, 0.25)) + [lowv, highv]:
+    # # tick = None
+    # if granularity != 0.5:
+    for a in list(np.arange(lowv, highv, granularity)) + [lowv, highv]:
+        tick = tinytick
+        if a * 2 == int(a * 2):
             tick = smalltick
-            if a == int(a):
-                tick = bigtick
-            plot_line(
-                [(rankpos(a), cline - tick / 2), (rankpos(a), cline)], linewidth=0.7
-            )
+        if a == int(a):
+            tick = bigtick
+        plot_line([(rankpos(a), cline - tick / 2), (rankpos(a), cline)], linewidth=0.7)
 
-        numbers = list(np.arange(lowv, highv + granularity, granularity))
-        for a in numbers:
-            plot_text(
-                rankpos(a),
-                cline - tick / 2 - 0.05,
-                str(int(a) if a == int(a) else a),
-                rot=90 if len(numbers) > 7 else 0,
-                ha="center",
-                va="bottom",
-            )
-    else:
-        for a in list(np.arange(lowv, highv, 0.5)) + [lowv, highv]:
-            tick = smalltick
-            if a == int(a):
-                tick = bigtick
-            plot_line(
-                [(rankpos(a), cline - tick / 2), (rankpos(a), cline)], linewidth=0.7
-            )
-
-        for a in list(np.arange(lowv, highv + granularity, 0.5)):
-            plot_text(
-                rankpos(a),
-                cline - tick / 2 - 0.05,
-                str(int(a) if a == int(a) else a),
-                ha="center",
-                va="bottom",
-            )
+    numbers = list(np.arange(lowv, highv + granularity, granularity))
+    for a in numbers:
+        plot_text(
+            rankpos(a),
+            cline - tick / 2 - 0.05,
+            str(int(a) if a == int(a) else a),
+            rot=90 if len(numbers) > 7 else 0,
+            ha="center",
+            va="bottom",
+        )
 
     # Left half of algorithms and pointers
     for i in range(math.ceil(len(sorted_ranks) / 2)):
@@ -826,12 +820,16 @@ def cd_diagram(
         plot_text(textspace + scalewidth + 0.2, chei, names[i], ha="left", va="center")
 
     # upper scale
-    if cd:
+    for cd_n, cdv in enumerate(cd):
         if not reverse:
-            begin, end = rankpos(lowv), rankpos(lowv + cd)
+            begin, end = rankpos(lowv), rankpos(lowv + cdv)
         else:
-            begin, end = rankpos(highv), rankpos(highv - cd)
-        plot_line([(begin, distanceh), (end, distanceh)], linewidth=0.7)
+            begin, end = rankpos(highv), rankpos(highv - cdv)
+        plot_line(
+            [(begin, distanceh), (end, distanceh)],
+            linestyle="dashed" if cd_n == 1 else "solid",
+            linewidth=0.7,
+        )
         plot_line(
             [(begin, distanceh + bigtick / 2), (begin, distanceh - bigtick / 2)],
             linewidth=0.7,
@@ -840,8 +838,8 @@ def cd_diagram(
             [(end, distanceh + bigtick / 2), (end, distanceh - bigtick / 2)],
             linewidth=0.7,
         )
-
-        plot_text((begin + end) / 2, distanceh - 0.05, "CD", ha="center", va="bottom")
+        if cd_n == len(cd) - 1:
+            plot_text((begin + end) / 2, distanceh - 0.05, "CD", ha="center", va="bottom")
 
     # no-significance lines
     side = 0.007
