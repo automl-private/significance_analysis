@@ -724,13 +724,9 @@ def cd_diagram(
         ]
         cd = hsd
 
-    if max(sorted_ranks) - min(sorted_ranks) < 1.5:
-        if max(sorted_ranks) - min(sorted_ranks) < 0.75:
-            granularity = 0.125
-        else:
-            granularity = 0.25
-    else:
-        granularity = 0.5
+    granularity = max(
+        2 ** round(math.log2((max(sorted_ranks) - min(sorted_ranks)) / 6)), 0.125
+    )
 
     lowv = (math.floor(min(sorted_ranks) / granularity)) * granularity
     highv = (math.ceil(max(sorted_ranks) / granularity)) * granularity
@@ -748,7 +744,9 @@ def cd_diagram(
     linesblank = 0.2 + 0.2 + (len(groups) - 1) * 0.1
 
     # add scale
-    distanceh = 0.2 if cd else -0.0
+    numbers = list(np.arange(lowv, highv + granularity, granularity))
+    distanceh = 0.2 if cd else 0
+    # distanceh -= 0.2 if len(numbers) > 7 or (granularity==0.125 and len(numbers) > 6) else 0
     cline += distanceh
 
     # calculate height needed height of an image
@@ -772,8 +770,6 @@ def cd_diagram(
     smalltick = 0.05
     tinytick = 0.03
 
-    # # tick = None
-    # if granularity != 0.5:
     for a in list(np.arange(lowv, highv, granularity)) + [lowv, highv]:
         tick = tinytick
         if a * 2 == int(a * 2):
@@ -782,13 +778,16 @@ def cd_diagram(
             tick = bigtick
         plot_line([(rankpos(a), cline - tick / 2), (rankpos(a), cline)], linewidth=0.7)
 
-    numbers = list(np.arange(lowv, highv + granularity, granularity))
     for a in numbers:
         plot_text(
             rankpos(a),
             cline - tick / 2 - 0.05,
             str(int(a) if a == int(a) else a),
-            rot=90 if len(numbers) > 7 else 0,
+            rot=90
+            if (len(numbers) > 7 or (granularity == 0.125 and len(numbers) > 6))
+            and len(str(a)) > 3
+            else 0,
+            size=6 if a * 2 != int(a * 2) else 10,
             ha="center",
             va="bottom",
         )
@@ -862,25 +861,27 @@ class bt_plot:
         self.algorithm = algorithm_var
         self.budget = budget_var
         self.slices = slices
-        self.dataset = dataset.loc[
-            (
-                dataset[self.budget]
-                > min(item for sublist in self.slices for item in sublist)
-            )
-            & (
-                dataset[self.budget]
-                <= max(item for sublist in self.slices for item in sublist)
-            )
-        ]
+        self.dataset = dataset
+        for s_n, s in enumerate(self.slices):
+            if len(s) == 1:
+                self.slices[s_n] = [
+                    np.max(
+                        self.dataset.loc[self.dataset[self.budget] <= s[0]][
+                            self.budget
+                        ].values
+                    )
+                    - 0.5,
+                    s[0],
+                ]
         self.df_slices = []
 
-        def grouper(row):
+        def slicer(row):
             for data_slice in self.slices:
                 if row[self.budget] > data_slice[0] and row[self.budget] <= data_slice[1]:
                     return f"{data_slice[0]}-{data_slice[1]}"
 
         for data_slice in self.slices:
-            self.dataset[f"{self.budget}_group"] = self.dataset.apply(grouper, axis=1)
+            self.dataset[f"{self.budget}_group"] = self.dataset.apply(slicer, axis=1)
             self.df_slices.append(
                 dataset.loc[
                     (dataset[self.budget] > data_slice[0])
@@ -911,14 +912,36 @@ class bt_plot:
                 cd_diagram(autorank_res, reverse=False, ax=self.axs[row][cell_n], width=5)
         else:
             if globality:
-                post_hocs = model(
-                    formula=f"{loss}~{lmem_formula}",
-                    data=self.dataset,
-                    factor_list=["algorithm", f"{self.budget}_group"],
-                ).post_hoc(
-                    marginal_vars=self.algorithm, grouping_vars=f"{self.budget}_group"
-                )
                 for cell_n in range(len(self.axs[row])):
+                    global_dataset = self.dataset.loc[
+                        self.dataset[self.budget] <= self.slices[cell_n][1]
+                    ]
+                    all_ranges = []
+                    prev_end = np.min(self.dataset[self.budget])
+                    for start, end in sorted([self.slices[cell_n]]):
+                        if start > prev_end:
+                            all_ranges.append([prev_end, start])
+                        prev_end = max(prev_end, end)
+                    if prev_end < np.max(global_dataset[self.budget]):
+                        all_ranges.append([prev_end, np.max(global_dataset[self.budget])])
+                    all_ranges += [self.slices[cell_n]]
+
+                    def grouper(row, all_ranges):
+                        for s in all_ranges:
+                            if row[self.budget] > s[0] and row[self.budget] <= s[1]:
+                                return f"{s[0]}-{s[1]}"
+                        return f"{all_ranges[0][0]}-{all_ranges[0][1]}"
+
+                    global_dataset[f"{self.budget}_group"] = global_dataset.apply(
+                        grouper, all_ranges=all_ranges, axis=1
+                    )
+                    post_hocs = model(
+                        formula=f"{loss}~{lmem_formula}+{self.budget}_group+{self.algorithm}:{self.budget}_group",
+                        data=global_dataset,
+                        factor_list=["algorithm", f"{self.budget}_group"],
+                    ).post_hoc(
+                        marginal_vars=self.algorithm, grouping_vars=f"{self.budget}_group"
+                    )
                     self.axs[row][cell_n].cla()
                     post_hoc = (
                         post_hocs[0].loc[
