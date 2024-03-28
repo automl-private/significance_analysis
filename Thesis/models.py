@@ -334,7 +334,7 @@ def model(
     factor: str = None,
     factor_list: list[str] = None,
     dummy=True,
-):
+) -> typing.Union[Lm, Lmer]:
     if not "|" in formula:
         if dummy:
             data["dummy"] = "0"
@@ -787,7 +787,7 @@ def cd_diagram(
             if (len(numbers) > 7 or (granularity == 0.125 and len(numbers) > 6))
             and len(str(a)) > 3
             else 0,
-            size=6 if a * 2 != int(a * 2) else 10,
+            size=16 - 2 * len(str(a)),  # if a * 2 != int(a * 2) else 10,
             ha="center",
             va="bottom",
         )
@@ -970,3 +970,194 @@ class bt_plot:
 
     def show(self):
         return self.fig
+
+
+class model_builder:
+    def __init__(
+        self,
+        df: pd.DataFrame,
+        loss_var: str = "value",
+        system_var="algorithm",
+        benchmark_var="benchmark",
+        fidelities=None,
+    ):
+        self.df = df
+        self.loss_formula = f"{loss_var} ~ "
+        self.exploratory_var = system_var
+        self.benchmark_var = benchmark_var
+        self.fidelities = fidelities
+        self.fidelity_sig = {f: -1 for f in self.fidelities}
+
+    def test_seed_dependency(self, verbose: bool = False):
+        simpel_model = model(
+            formula=f"{self.loss_formula}+{self.exploratory_var}",
+            data=self.df,
+            factor_list=[self.exploratory_var],
+            dummy=False,
+        )
+        seed_model = model(
+            formula=f"{self.loss_formula}+(0+{self.exploratory_var}|seed)",
+            data=self.df,
+            factor_list=[self.exploratory_var],
+            dummy=False,
+        )
+        test_result = glrt(
+            simpel_model,
+            seed_model,
+            names=["simple", "seed"] if verbose else None,
+            returns=True,
+        )
+        if test_result["p"] < 0.05 and seed_model.logLike > simpel_model.logLike:
+            ranef_var = seed_model.ranef_var
+            print(
+                f"Seed is significant, likely influenced algorithms: {ranef_var.loc[(ranef_var['Var']/10 >= ranef_var['Var'].min())&(ranef_var.index!='Residual')&(ranef_var['Var']*10 >= ranef_var['Var'].max())]['Name'].to_list()}"
+            )
+            return ranef_var.loc[
+                (ranef_var["Var"] / 10 >= ranef_var["Var"].min())
+                & (ranef_var.index != "Residual")
+                & (ranef_var["Var"] * 10 >= ranef_var["Var"].max())
+            ]["Name"].to_list()
+        else:
+            print("Seed is not significant")
+            return []
+
+    def test_benchmark_information(
+        self, rank_benchmarks: bool = False, verbose: bool = False
+    ):
+        test_results = {}
+        benchmark_info = {}
+        for benchmark in self.df[self.benchmark_var].unique():
+            simple_mod = model(
+                formula=f"{self.loss_formula}+1",
+                data=self.df.loc[self.df[self.benchmark_var] == benchmark],
+                factor_list=[self.exploratory_var],
+                dummy=False,
+            )
+            benchmark_mod = model(
+                formula=f"{self.loss_formula}+{self.exploratory_var}",
+                data=self.df.loc[self.df[self.benchmark_var] == benchmark],
+                factor_list=[self.exploratory_var],
+                dummy=False,
+            )
+            if verbose:
+                print(f"\nBenchmark: {benchmark}")
+            test_results[benchmark] = glrt(
+                simple_mod,
+                benchmark_mod,
+                names=["simple", "algorithm"] if verbose else None,
+                returns=True,
+            )
+            if (
+                test_results[benchmark]["p"] < 0.05
+                and benchmark_mod.logLike > simple_mod.logLike
+            ):
+                print(f"Benchmark {benchmark} is informative.")
+                benchmark_info[benchmark] = True
+            else:
+                print(f"Benchmark {benchmark} is uninformative.")
+                benchmark_info[benchmark] = False
+        if any(test_results[b]["p"] > 0.05 for b, _ in test_results.items()):
+            if rank_benchmarks:
+                all_benchmarks_mod = model(
+                    formula=f"{self.loss_formula}+(0+{self.benchmark_var}|{self.exploratory_var})",
+                    data=self.df,
+                    factor_list=[self.exploratory_var],
+                    dummy=False,
+                )
+                print(all_benchmarks_mod.ranef_var)
+
+    def test_fidelity(self, fidelity_var: str, verbose: bool = False):
+        significances = {fidelity_var: 0, f"{fidelity_var}_group": 0}
+        simple_formula = f"{self.loss_formula} {self.exploratory_var}{f' + (1|{self.benchmark_var})' if self.df[self.benchmark_var].nunique()>1 else ''}"
+        simple_mod = model(
+            formula=simple_formula,
+            data=self.df,
+            factor_list=[self.exploratory_var],
+            dummy=self.df[self.benchmark_var].nunique() == 1,
+        )
+        fidelity_mod = model(
+            formula=f"{simple_formula} + {fidelity_var}",
+            data=self.df,
+            factor_list=[self.exploratory_var],
+            dummy=self.df[self.benchmark_var].nunique() == 1,
+        )
+        test_result = glrt(
+            simple_mod,
+            fidelity_mod,
+            names=["simple", "fidelity"] if verbose else None,
+            returns=True,
+        )
+        if test_result["p"] < 0.05 and fidelity_mod.logLike > simple_mod.logLike:
+            significances[fidelity_var] = 1
+        fid_group_mod = model(
+            formula=f"{simple_formula} + {self.exploratory_var}:{fidelity_var}",
+            data=self.df,
+            factor_list=[self.exploratory_var],
+            dummy=self.df[self.benchmark_var].nunique() == 1,
+        )
+        test_result = glrt(
+            simple_mod,
+            fid_group_mod,
+            names=["simple", "fidelity_group"] if verbose else None,
+            returns=True,
+        )
+        if test_result["p"] < 0.05 and fid_group_mod.logLike > simple_mod.logLike:
+            significances[f"{fidelity_var}_group"] = 1
+        if (
+            significances[fidelity_var] == 1
+            and significances[f"{fidelity_var}_group"] == 1
+        ):
+            test_result = glrt(
+                fidelity_mod,
+                fid_group_mod,
+                names=["fidelity", "fidelity_group"] if verbose else None,
+                returns=True,
+            )
+            if test_result["p"] < 0.05 and fid_group_mod.logLike > fidelity_mod.logLike:
+                if verbose:
+                    print(
+                        f"Fidelity {fidelity_var} as single and interaction effect are both significant, but interaction is more significant."
+                    )
+                self.fidelity_sig[fidelity_var] = 2
+            else:
+                if verbose:
+                    print(
+                        f"Fidelity {fidelity_var} as single and interaction effect both significant, but as single factor is more significant."
+                    )
+                self.fidelity_sig[fidelity_var] = 1
+        elif significances[fidelity_var] == 1:
+            if verbose:
+                print(f"Fidelity {fidelity_var} as single factor significant.")
+            self.fidelity_sig[fidelity_var] = 1
+        elif significances[f"{fidelity_var}_group"] == 1:
+            if verbose:
+                print(f"Fidelity {fidelity_var} as interaction is significant.")
+            self.fidelity_sig[fidelity_var] = 2
+        else:
+            if verbose:
+                print(f"Fidelity {fidelity_var} is not significant.")
+            self.fidelity_sig[fidelity_var] = 0
+
+    def full_test(self, verbose: bool = False):
+        self.test_seed_dependency(verbose=verbose)
+        self.test_benchmark_information(verbose=verbose)
+        for f in self.fidelities:
+            self.test_fidelity(f, verbose=verbose)
+
+    def build_model(self):
+        for fidelity, sig in self.fidelity_sig.items():
+            if sig == -1:
+                self.test_fidelity(fidelity, verbose=True)
+        model_formula = (
+            f"{self.loss_formula} + {self.exploratory_var} + (1|{self.benchmark_var})"
+            + "".join(
+                [
+                    f" + {self.exploratory_var}:{f}"
+                    if self.fidelity_sig[f] == 2
+                    else f" + {f}"
+                    for f in self.fidelities
+                    if self.fidelity_sig[f] > 0
+                ]
+            )
+        )
+        print(model_formula)
