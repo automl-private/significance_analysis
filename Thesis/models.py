@@ -642,6 +642,7 @@ def cd_diagram(
     result,
     reverse,
     width,
+    system_id="algorithm",
     ax=None,
 ):
     """
@@ -672,7 +673,7 @@ def cd_diagram(
         cd = [result.cd]
     else:
         result = list(result)
-        estimates = result[0].set_index("algorithm")
+        estimates = result[0].set_index(system_id)
         estimates = estimates.sort_values(by="Estimate")
         sorted_ranks = pd.DataFrame()
         sorted_ranks = estimates["Estimate"]
@@ -683,20 +684,22 @@ def cd_diagram(
         names_con = [name if "+" not in name else f"({name})" for name in names]
         contrasts = result[1]
         for pair in contrasts["Contrast"]:
-            contrasts.loc[contrasts["Contrast"] == pair, "algorithm_1"] = pair.split(
-                " - "
-            )[0]
-            contrasts.loc[contrasts["Contrast"] == pair, "algorithm_2"] = pair.split(
-                " - "
-            )[1]
+            sys_1 = pair.split(" - ")[0]
+            sys_2 = pair.split(" - ")[1]
+            contrasts.loc[contrasts["Contrast"] == pair, f"{system_id}_1"] = (
+                sys_1 if sys_1[0] != "(" or sys_1[-1] != ")" else sys_1[1:-1]
+            )
+            contrasts.loc[contrasts["Contrast"] == pair, f"{system_id}_2"] = (
+                sys_2 if sys_2[0] != "(" or sys_2[-1] != ")" else sys_2[1:-1]
+            )
         contrasts = contrasts.drop("Contrast", axis=1)
-        column = contrasts.pop("algorithm_2")
-        contrasts.insert(0, "algorithm_2", column)
-        column = contrasts.pop("algorithm_1")
-        contrasts.insert(0, "algorithm_1", column)
+        column = contrasts.pop(f"{system_id}_2")
+        contrasts.insert(0, f"{system_id}_2", column)
+        column = contrasts.pop(f"{system_id}_1")
+        contrasts.insert(0, f"{system_id}_1", column)
         groups = []
         for _, row in contrasts.iterrows():
-            algos = (row["algorithm_1"], row["algorithm_2"])
+            algos = (row[f"{system_id}_1"], row[f"{system_id}_2"])
             if row["P-val"] > 0.05:
                 group = [names_con.index(algos[0]), names_con.index(algos[1])]
                 group.sort()
@@ -712,24 +715,32 @@ def cd_diagram(
         # p_hsd=1-studentized_range.cdf(t_stat*np.sqrt(2), k=len(estimates), df=contrasts.DF[0])
         hsd = [
             (
-                studentized_range.ppf(1 - 0.05, k=len(estimates), df=contrasts.DF.max())
-                / np.sqrt(2)
-                * contrasts.SE.max()
-            ),
-            (
                 studentized_range.ppf(1 - 0.05, k=len(estimates), df=contrasts.DF.min())
                 / np.sqrt(2)
                 * contrasts.SE.min()
+            ),
+            (
+                studentized_range.ppf(1 - 0.05, k=len(estimates), df=contrasts.DF.max())
+                / np.sqrt(2)
+                * contrasts.SE.max()
             ),
         ]
         cd = hsd
 
     granularity = max(
-        2 ** round(math.log2((max(sorted_ranks) - min(sorted_ranks)) / 6)), 0.125
+        2 ** round(math.log2((max(sorted_ranks) - min(sorted_ranks)) / 6)), 0.03125
     )
+    if granularity < 0.25:
+        granularity = 10 ** round(math.log10((max(sorted_ranks) - min(sorted_ranks)) / 3))
 
-    lowv = (math.floor(min(sorted_ranks) / granularity)) * granularity
-    highv = (math.ceil(max(sorted_ranks) / granularity)) * granularity
+    lowv = round(
+        (math.floor(min(sorted_ranks) / granularity)) * granularity,
+        len(str(int(1 / granularity))) + 1,
+    )
+    highv = round(
+        (math.ceil(max(sorted_ranks) / granularity)) * granularity,
+        len(str(int(1 / granularity))) + 1,
+    )
     cline = 0.4
     textspace = 1
     scalewidth = width - 2 * textspace
@@ -742,11 +753,33 @@ def cd_diagram(
         return textspace + scalewidth / (highv - lowv) * relative_rank
 
     linesblank = 0.2 + 0.2 + (len(groups) - 1) * 0.1
-
+    rounder = len(str(int(1 / granularity)))
     # add scale
-    numbers = list(np.arange(lowv, highv + granularity, granularity))
+    if granularity < 0.25:
+        numbers = list(
+            np.round(
+                np.linspace(
+                    lowv,
+                    highv + granularity,
+                    round((highv + granularity - lowv) / granularity),
+                    endpoint=False,
+                ),
+                rounder,
+            )
+        )
+    else:
+        numbers = list(
+            np.round(
+                np.linspace(
+                    lowv,
+                    highv + granularity,
+                    round((highv + granularity - lowv) / granularity),
+                    endpoint=False,
+                ),
+                rounder + 2,
+            )
+        )  # list(np.arange(lowv, highv + granularity, granularity))
     distanceh = 0.2 if cd else 0
-    # distanceh -= 0.2 if len(numbers) > 7 or (granularity==0.125 and len(numbers) > 6) else 0
     cline += distanceh
 
     # calculate height needed height of an image
@@ -779,15 +812,18 @@ def cd_diagram(
         plot_line([(rankpos(a), cline - tick / 2), (rankpos(a), cline)], linewidth=0.7)
 
     for a in numbers:
+        a = int(a) if a == int(a) else a
         plot_text(
             rankpos(a),
             cline - tick / 2 - 0.05,
-            str(int(a) if a == int(a) else a),
+            str(a),
             rot=90
-            if (len(numbers) > 7 or (granularity == 0.125 and len(numbers) > 6))
-            and len(str(a)) > 3
+            if (
+                (len(numbers) > 7 or (granularity < 0.125 and len(numbers) > 6))
+                and len(str(abs(a))) >= 3
+            )
             else 0,
-            size=16 - 2 * len(str(a)),  # if a * 2 != int(a * 2) else 10,
+            size=12 - 2 * len(str(abs(a))) + 1.2 * min(len(str(abs(a))) for a in numbers),
             ha="center",
             va="bottom",
         )
@@ -938,7 +974,8 @@ class bt_plot:
                     post_hocs = model(
                         formula=f"{loss}~{lmem_formula}+{self.budget}_group+{self.algorithm}:{self.budget}_group",
                         data=global_dataset,
-                        factor_list=["algorithm", f"{self.budget}_group"],
+                        system_id=self.algorithm,
+                        factor_list=[self.algorithm, f"{self.budget}_group"],
                     ).post_hoc(
                         marginal_vars=self.algorithm, grouping_vars=f"{self.budget}_group"
                     )
@@ -958,14 +995,17 @@ class bt_plot:
                 for cell_n in range(len(self.axs[row])):
                     self.axs[row][cell_n].cla()
                     post_hocs = model(
-                        formula=f"{loss}~{lmem_formula}", data=self.df_slices[cell_n]
+                        formula=f"{loss}~{lmem_formula}",
+                        data=self.df_slices[cell_n],
+                        system_id=self.algorithm,
                     ).post_hoc(marginal_vars=self.algorithm)
                     cd_diagram(
                         post_hocs, reverse=False, ax=self.axs[row][cell_n], width=5
                     )
         for cell_n in range(len(self.axs[row])):
+            title = f"{'Autorank' if not lmem_formula else 'LMEM'} ({loss}) {' (global)' if globality else ''} on slice {self.slices[cell_n]}"
             self.axs[row][cell_n].set_title(
-                f"{'Autorank' if not lmem_formula else 'LMEM'} ({loss}) {' (global)' if globality else ''} on slice {self.slices[cell_n]}"
+                title, fontdict={"fontsize": 18 - (len(title) / 6)}
             )
 
     def show(self):
