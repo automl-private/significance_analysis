@@ -681,7 +681,6 @@ def cd_diagram(
         estimates["ci_upper"] = estimates["2.5_ci"]
         estimates["ci_lower"] = estimates["97.5_ci"]
         names = estimates.index.values.tolist()
-        names_con = [name if "+" not in name else f"({name})" for name in names]
         contrasts = result[1]
         for pair in contrasts["Contrast"]:
             sys_1 = pair.split(" - ")[0]
@@ -701,7 +700,7 @@ def cd_diagram(
         for _, row in contrasts.iterrows():
             algos = (row[f"{system_id}_1"], row[f"{system_id}_2"])
             if row["P-val"] > 0.05:
-                group = [names_con.index(algos[0]), names_con.index(algos[1])]
+                group = [names.index(algos[0]), names.index(algos[1])]
                 group.sort()
                 groups.append((group[0], group[1]))
         new_groups = []
@@ -877,7 +876,7 @@ def cd_diagram(
             plot_text((begin + end) / 2, distanceh - 0.05, "CD", ha="center", va="bottom")
 
     # no-significance lines
-    side = 0.007
+    side = 0.015
     no_sig_height = 0.1
     start = cline + 0.2
     for l, r in groups:
@@ -890,6 +889,118 @@ def cd_diagram(
             solid_capstyle="round",
         )
         start += no_sig_height
+
+
+def ci_plot(result, reverse, width, system_id="algorithm", ax=None, title=None):
+    """
+    Uses error bars to create a plot of the confidence intervals of the mean value.
+    """
+    if (
+        not isinstance(result, tuple)
+        or len(result) != 2
+        or not all(isinstance(df, pd.DataFrame) for df in result)
+    ):
+        result_copy = RankResult(**result._asdict())
+        result_copy = result_copy._replace(
+            rankdf=result.rankdf.sort_values(by="meanrank")
+        )
+        sorted_ranks, names, groups = get_sorted_rank_groups(result_copy, reverse)
+        # cd = [result.cd]
+    else:
+        print("LMEM")
+        result = list(result)
+        estimates = result[0].set_index(system_id)
+        estimates = estimates.sort_values(by="Estimate")
+        sorted_ranks = pd.DataFrame()
+        sorted_ranks = estimates["Estimate"]
+        sorted_ranks.name = "meanrank"
+        estimates["ci_upper"] = estimates["2.5_ci"]
+        estimates["ci_lower"] = estimates["97.5_ci"]
+        names = estimates.index.values.tolist()
+        names_con = [name if "+" not in name else f"({name})" for name in names]
+        contrasts = result[1]
+        for pair in contrasts["Contrast"]:
+            sys_1 = pair.split(" - ")[0]
+            sys_2 = pair.split(" - ")[1]
+            contrasts.loc[contrasts["Contrast"] == pair, f"{system_id}_1"] = (
+                sys_1 if sys_1[0] != "(" or sys_1[-1] != ")" else sys_1[1:-1]
+            )
+            contrasts.loc[contrasts["Contrast"] == pair, f"{system_id}_2"] = (
+                sys_2 if sys_2[0] != "(" or sys_2[-1] != ")" else sys_2[1:-1]
+            )
+        contrasts = contrasts.drop("Contrast", axis=1)
+        column = contrasts.pop(f"{system_id}_2")
+        contrasts.insert(0, f"{system_id}_2", column)
+        column = contrasts.pop(f"{system_id}_1")
+        contrasts.insert(0, f"{system_id}_1", column)
+        groups = []
+        for _, row in contrasts.iterrows():
+            algos = (row[f"{system_id}_1"], row[f"{system_id}_2"])
+            if row["P-val"] > 0.05:
+                group = [names_con.index(algos[0]), names_con.index(algos[1])]
+                group.sort()
+                groups.append((group[0], group[1]))
+        new_groups = []
+        for group in groups:
+            if not any(
+                group[0] >= g[0] and group[1] <= g[1] and group != g for g in groups
+            ):
+                new_groups.append(group)
+        groups = new_groups
+        # t_stat=max(abs(contrasts.Estimate.min()),abs(contrasts.Estimate.min()))/contrasts.SE.min()
+        # p_hsd=1-studentized_range.cdf(t_stat*np.sqrt(2), k=len(estimates), df=contrasts.DF[0])
+        # hsd = [
+        #     (
+        #         studentized_range.ppf(1 - 0.05, k=len(estimates), df=contrasts.DF.min())
+        #         / np.sqrt(2)
+        #         * contrasts.SE.min()
+        #     ),
+        #     (
+        #         studentized_range.ppf(1 - 0.05, k=len(estimates), df=contrasts.DF.max())
+        #         / np.sqrt(2)
+        #         * contrasts.SE.max()
+        #     ),
+        # ]
+
+        sorted_means = sorted_ranks
+        ci_lower = estimates.ci_lower
+        ci_upper = estimates.ci_upper
+        names = names
+        alpha = 0.05
+
+        height = len(sorted_ranks)
+    if reverse:
+        sorted_df = result.rankdf.iloc[::-1]
+    else:
+        print(result)
+        sorted_df = result.rankdf
+    sorted_means = sorted_df.meanrank
+    ci_lower = sorted_df.ci_lower
+    ci_upper = sorted_df.ci_upper
+    names = sorted_df.index
+    alpha = result.alpha
+
+    height = len(sorted_df)
+    if ax is None:
+        fig = plt.figure(figsize=(width, height))
+        fig.set_facecolor("white")
+        ax = plt.gca()
+    ax.errorbar(
+        sorted_means,
+        range(len(sorted_means)),
+        xerr=abs((ci_upper[0] - ci_lower[0]) / 4),
+        marker="o",
+        linestyle="None",
+        color="k",
+        ecolor="k",
+    )
+    ax.set_yticks(range(len(names)))
+    ax.set_yticklabels(list(names))
+    if title:
+        ax.set_title(title)
+    else:
+        ax.set_title("%.1f%% Confidence Intervals of the Mean" % ((1 - alpha) * 100))
+    return ax
 
 
 class bt_plot:
@@ -933,7 +1044,12 @@ class bt_plot:
             self.axs = [[item] for item in self.axs]
 
     def change_row(
-        self, row: int, lmem_formula: str, globality: bool = False, loss: str = "value"
+        self,
+        row: int,
+        lmem_formula: str,
+        globality: bool = False,
+        loss: str = "value",
+        titles: list[str] = None,
     ):
         if not lmem_formula:
             for cell_n in range(len(self.axs[row])):
@@ -945,8 +1061,10 @@ class bt_plot:
                     budget_variable=self.budget,
                 )
                 autorank_res = autorank(autorank_data)
+                post_hoc_col = autorank_res
                 cd_diagram(autorank_res, reverse=False, ax=self.axs[row][cell_n], width=5)
         else:
+            post_hoc_col = []
             if globality:
                 for cell_n in range(len(self.axs[row])):
                     global_dataset = self.dataset.loc[
@@ -979,6 +1097,7 @@ class bt_plot:
                     ).post_hoc(
                         marginal_vars=self.algorithm, grouping_vars=f"{self.budget}_group"
                     )
+                    post_hoc_col.append(post_hocs)
                     self.axs[row][cell_n].cla()
                     post_hoc = (
                         post_hocs[0].loc[
@@ -999,14 +1118,19 @@ class bt_plot:
                         data=self.df_slices[cell_n],
                         system_id=self.algorithm,
                     ).post_hoc(marginal_vars=self.algorithm)
+                    post_hoc_col.append(post_hocs)
                     cd_diagram(
-                        post_hocs, reverse=False, ax=self.axs[row][cell_n], width=5
+                        post_hocs, reverse=False, ax=self.axs[row][cell_n], width=7
                     )
         for cell_n in range(len(self.axs[row])):
-            title = f"{'Autorank' if not lmem_formula else 'LMEM'} ({loss}) {' (global)' if globality else ''} on slice {self.slices[cell_n]}"
+            if not titles:
+                title = f"{'Autorank' if not lmem_formula else 'LMEM'} ({loss}) {' (global)' if globality else ''} on slice {self.slices[cell_n]}"
+            else:
+                title = titles[cell_n]
             self.axs[row][cell_n].set_title(
                 title, fontdict={"fontsize": 18 - (len(title) / 6)}
             )
+        return post_hoc_col
 
     def show(self):
         return self.fig
