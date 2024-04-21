@@ -334,6 +334,7 @@ def model(
     factor: str = None,
     factor_list: list[str] = None,
     dummy=True,
+    no_warnings=True,
 ) -> typing.Union[Lm, Lmer]:
     if not "|" in formula:
         if dummy:
@@ -354,7 +355,13 @@ def model(
     if factor_list:
         for factor in factor_list:
             factors[factor] = list(data[factor].unique())
-    model.fit(factors=factors, REML=False, summarize=False, verbose=False)
+    model.fit(
+        factors=factors,
+        REML=False,
+        summarize=False,
+        verbose=False,
+        no_warnings=no_warnings,
+    )
     return model
 
 
@@ -639,11 +646,7 @@ class RankResult(
 
 
 def cd_diagram(
-    result,
-    reverse,
-    width,
-    system_id="algorithm",
-    ax=None,
+    result, reverse, width, system_id="algorithm", ax_p=None, split_labels=None
 ):
     """
     Creates a Critical Distance diagram.
@@ -785,10 +788,12 @@ def cd_diagram(
     minnotsignificant = max(2 * 0.2, linesblank)
     height = cline + ((len(sorted_ranks) + 1) / 2) * 0.2 + minnotsignificant
 
-    if not ax:
+    if not ax_p:
         fig_cd = plt.figure(figsize=(width, height))
         fig_cd.set_facecolor("white")
         ax = fig_cd.add_axes([0, 0, 1, 1])  # reverse y axis
+    else:
+        ax = ax_p
     ax.set_axis_off()
 
     # Upper left corner is (0,0).
@@ -838,7 +843,12 @@ def cd_diagram(
             ],
             linewidth=0.7,
         )
-        plot_text(textspace - 0.2, chei, names[i], ha="right", va="center")
+        if split_labels:
+            plot_text(
+                textspace - 0.2, chei, names[i].rsplit("_", 1)[1], ha="right", va="center"
+            )
+        else:
+            plot_text(textspace - 0.2, chei, names[i], ha="right", va="center")
 
     # Right half of algorithms and pointers
     for i in range(math.ceil(len(sorted_ranks) / 2), len(sorted_ranks)):
@@ -851,7 +861,18 @@ def cd_diagram(
             ],
             linewidth=0.7,
         )
-        plot_text(textspace + scalewidth + 0.2, chei, names[i], ha="left", va="center")
+        if split_labels:
+            plot_text(
+                textspace + scalewidth + 0.2,
+                chei,
+                names[i].rsplit("_", 1)[1],
+                ha="left",
+                va="center",
+            )
+        else:
+            plot_text(
+                textspace + scalewidth + 0.2, chei, names[i], ha="left", va="center"
+            )
 
     # upper scale
     for cd_n, cdv in enumerate(cd):
@@ -889,6 +910,8 @@ def cd_diagram(
             solid_capstyle="round",
         )
         start += no_sig_height
+    if not ax_p:
+        return fig_cd
 
 
 def ci_plot(result, reverse, width, system_id="algorithm", ax=None, title=None):
@@ -905,7 +928,19 @@ def ci_plot(result, reverse, width, system_id="algorithm", ax=None, title=None):
             rankdf=result.rankdf.sort_values(by="meanrank")
         )
         sorted_ranks, names, groups = get_sorted_rank_groups(result_copy, reverse)
+        sorted_means = sorted_df.meanrank
+        ci_lower = sorted_df.ci_lower
+        ci_upper = sorted_df.ci_upper
+        names = sorted_df.index
+        alpha = result.alpha
+        if reverse:
+            sorted_df = result.rankdf.iloc[::-1]
+        else:
+            print(result)
+        sorted_df = result.rankdf
+        height = len(sorted_df)
         # cd = [result.cd]
+
     else:
         print("LMEM")
         result = list(result)
@@ -969,18 +1004,7 @@ def ci_plot(result, reverse, width, system_id="algorithm", ax=None, title=None):
         alpha = 0.05
 
         height = len(sorted_ranks)
-    if reverse:
-        sorted_df = result.rankdf.iloc[::-1]
-    else:
-        print(result)
-        sorted_df = result.rankdf
-    sorted_means = sorted_df.meanrank
-    ci_lower = sorted_df.ci_lower
-    ci_upper = sorted_df.ci_upper
-    names = sorted_df.index
-    alpha = result.alpha
 
-    height = len(sorted_df)
     if ax is None:
         fig = plt.figure(figsize=(width, height))
         fig.set_facecolor("white")
@@ -1009,35 +1033,59 @@ class bt_plot:
         self.budget = budget_var
         self.slices = slices
         self.dataset = dataset
-        for s_n, s in enumerate(self.slices):
-            if len(s) == 1:
-                self.slices[s_n] = [
-                    np.max(
-                        self.dataset.loc[self.dataset[self.budget] <= s[0]][
-                            self.budget
-                        ].values
-                    )
-                    - 0.5,
-                    s[0],
-                ]
+        self.ranges = [self.dataset[budget_var].min(), self.dataset[budget_var].max()]
+        for s in self.slices:
+            if isinstance(s, list):
+                if s[0] not in self.ranges:
+                    self.ranges.append(s[0])
+                if s[1] not in self.ranges:
+                    self.ranges.append(s[1])
+            else:
+                if s not in self.ranges:
+                    self.ranges.append(s)
+        self.ranges.sort()
+
         self.df_slices = []
 
         def slicer(row):
             for data_slice in self.slices:
-                if row[self.budget] > data_slice[0] and row[self.budget] <= data_slice[1]:
+                if (not isinstance(data_slice, list)) and row[self.budget] == data_slice:
+                    return f"{data_slice}"
+                elif (
+                    isinstance(data_slice, list)
+                    and row[self.budget] >= data_slice[0]
+                    and (
+                        row[self.budget] < data_slice[1]
+                        or (
+                            row[self.budget] == max(self.ranges)
+                            and row[self.budget] == data_slice[1]
+                        )
+                    )
+                ):
                     return f"{data_slice[0]}-{data_slice[1]}"
+            for r_n, r in enumerate(self.ranges[:-1]):
+                if row[self.budget] >= r and (row[self.budget] < self.ranges[r_n + 1]):
+                    return f"{self.ranges[r_n]}-{self.ranges[r_n+1]}"
 
+        self.dataset[f"{self.budget}_group"] = self.dataset.apply(slicer, axis=1)
         for data_slice in self.slices:
-            self.dataset[f"{self.budget}_group"] = self.dataset.apply(slicer, axis=1)
-            self.df_slices.append(
-                dataset.loc[
-                    (dataset[self.budget] > data_slice[0])
-                    & (dataset[self.budget] <= data_slice[1])
-                ]
-            )
+            if isinstance(data_slice, list):
+                self.df_slices.append(
+                    dataset.loc[
+                        (
+                            dataset[f"{self.budget}_group"]
+                            == f"{data_slice[0]}-{data_slice[1]}"
+                        )
+                    ]
+                )
+            else:
+                self.df_slices.append(
+                    dataset.loc[(dataset[f"{self.budget}_group"] == f"{data_slice}")]
+                )
         self.fig, self.axs = plt.subplots(
-            rows, len(self.df_slices), figsize=(4.5 * len(self.slices), 2 * rows)
+            rows, len(self.df_slices), figsize=(3 * len(self.slices), 2 * rows)
         )
+        plt.tight_layout(pad=0.3)
         plt.close(self.fig)
         self.axs = [self.axs] if rows == 1 else self.axs.tolist()
         if len(self.slices) == 1:
@@ -1062,33 +1110,21 @@ class bt_plot:
                 )
                 autorank_res = autorank(autorank_data)
                 post_hoc_col = autorank_res
-                cd_diagram(autorank_res, reverse=False, ax=self.axs[row][cell_n], width=5)
+                cd_diagram(
+                    autorank_res, reverse=False, ax_p=self.axs[row][cell_n], width=5
+                )
         else:
             post_hoc_col = []
             if globality:
                 for cell_n in range(len(self.axs[row])):
-                    global_dataset = self.dataset.loc[
-                        self.dataset[self.budget] <= self.slices[cell_n][1]
-                    ]
-                    all_ranges = []
-                    prev_end = np.min(self.dataset[self.budget])
-                    for start, end in sorted([self.slices[cell_n]]):
-                        if start > prev_end:
-                            all_ranges.append([prev_end, start])
-                        prev_end = max(prev_end, end)
-                    if prev_end < np.max(global_dataset[self.budget]):
-                        all_ranges.append([prev_end, np.max(global_dataset[self.budget])])
-                    all_ranges += [self.slices[cell_n]]
-
-                    def grouper(row, all_ranges):
-                        for s in all_ranges:
-                            if row[self.budget] > s[0] and row[self.budget] <= s[1]:
-                                return f"{s[0]}-{s[1]}"
-                        return f"{all_ranges[0][0]}-{all_ranges[0][1]}"
-
-                    global_dataset[f"{self.budget}_group"] = global_dataset.apply(
-                        grouper, all_ranges=all_ranges, axis=1
-                    )
+                    if isinstance(self.slices[cell_n], list):
+                        global_dataset = self.dataset.loc[
+                            self.dataset[self.budget] <= self.slices[cell_n][1]
+                        ]
+                    else:
+                        global_dataset = self.dataset.loc[
+                            self.dataset[self.budget] <= self.slices[cell_n]
+                        ]
                     post_hocs = model(
                         formula=f"{loss}~{lmem_formula}+{self.budget}_group+{self.algorithm}:{self.budget}_group",
                         data=global_dataset,
@@ -1099,17 +1135,31 @@ class bt_plot:
                     )
                     post_hoc_col.append(post_hocs)
                     self.axs[row][cell_n].cla()
-                    post_hoc = (
-                        post_hocs[0].loc[
-                            post_hocs[0][f"{self.budget}_group"]
-                            == f"{self.slices[cell_n][0]}-{self.slices[cell_n][1]}"
-                        ],
-                        post_hocs[1].loc[
-                            post_hocs[1][f"{self.budget}_group"]
-                            == f"{self.slices[cell_n][0]}-{self.slices[cell_n][1]}"
-                        ],
+                    if isinstance(self.slices[cell_n], list):
+                        post_hoc = (
+                            post_hocs[0].loc[
+                                post_hocs[0][f"{self.budget}_group"]
+                                == f"{self.slices[cell_n][0]}-{self.slices[cell_n][1]}"
+                            ],
+                            post_hocs[1].loc[
+                                post_hocs[1][f"{self.budget}_group"]
+                                == f"{self.slices[cell_n][0]}-{self.slices[cell_n][1]}"
+                            ],
+                        )
+                    else:
+                        post_hoc = (
+                            post_hocs[0].loc[
+                                post_hocs[0][f"{self.budget}_group"]
+                                == f"{self.slices[cell_n]}"
+                            ],
+                            post_hocs[1].loc[
+                                post_hocs[1][f"{self.budget}_group"]
+                                == f"{self.slices[cell_n]}"
+                            ],
+                        )
+                    cd_diagram(
+                        post_hoc, reverse=False, ax_p=self.axs[row][cell_n], width=5
                     )
-                    cd_diagram(post_hoc, reverse=False, ax=self.axs[row][cell_n], width=5)
             else:
                 for cell_n in range(len(self.axs[row])):
                     self.axs[row][cell_n].cla()
@@ -1120,16 +1170,17 @@ class bt_plot:
                     ).post_hoc(marginal_vars=self.algorithm)
                     post_hoc_col.append(post_hocs)
                     cd_diagram(
-                        post_hocs, reverse=False, ax=self.axs[row][cell_n], width=7
+                        post_hocs, reverse=False, ax_p=self.axs[row][cell_n], width=7
                     )
         for cell_n in range(len(self.axs[row])):
             if not titles:
-                title = f"{'Autorank' if not lmem_formula else 'LMEM'} ({loss}) {' (global)' if globality else ''} on slice {self.slices[cell_n]}"
+                title = f"{'Autorank' if not lmem_formula else 'LMEM'} using {loss}{' (global)' if globality else ''} at {self.slices[cell_n]}x budget"
             else:
                 title = titles[cell_n]
-            self.axs[row][cell_n].set_title(
-                title, fontdict={"fontsize": 18 - (len(title) / 6)}
-            )
+            if not titles == "":
+                self.axs[row][cell_n].set_title(
+                    title, fontdict={"fontsize": 18 - (len(title) / 4.8)}
+                )
         return post_hoc_col
 
     def show(self):
@@ -1152,85 +1203,134 @@ class model_builder:
         self.fidelities = fidelities
         self.fidelity_sig = {f: -1 for f in self.fidelities}
 
-    def test_seed_dependency(self, verbose: bool = False):
+    def test_seed_dependency(self, verbose: bool = True):
         simpel_model = model(
             formula=f"{self.loss_formula}+{self.exploratory_var}",
             data=self.df,
             factor_list=[self.exploratory_var],
             dummy=False,
+            no_warnings=True,
         )
         seed_model = model(
             formula=f"{self.loss_formula}+(0+{self.exploratory_var}|seed)",
             data=self.df,
             factor_list=[self.exploratory_var],
             dummy=False,
+            no_warnings=True,
         )
         test_result = glrt(
             simpel_model,
             seed_model,
-            names=["simple", "seed"] if verbose else None,
+            names=["Simple model", "Model with Seed-effect"] if verbose else None,
             returns=True,
         )
         if test_result["p"] < 0.05 and seed_model.logLike > simpel_model.logLike:
             ranef_var = seed_model.ranef_var
-            print(
-                f"Seed is significant, likely influenced algorithms: {ranef_var.loc[(ranef_var['Var']/10 >= ranef_var['Var'].min())&(ranef_var.index!='Residual')&(ranef_var['Var']*10 >= ranef_var['Var'].max())]['Name'].to_list()}"
-            )
-            return ranef_var.loc[
+            influenced = ranef_var.loc[
                 (ranef_var["Var"] / 10 >= ranef_var["Var"].min())
                 & (ranef_var.index != "Residual")
                 & (ranef_var["Var"] * 10 >= ranef_var["Var"].max())
             ]["Name"].to_list()
+            influenced = [x.rsplit(self.exploratory_var, 1)[1] for x in influenced]
+            print(
+                f"Seed is a significant effect, likely influenced algorithms: {influenced}"
+            )
+            return influenced
         else:
-            print("Seed is not significant")
+            print("=> Seed is not a significant effect")
             return []
 
     def test_benchmark_information(
-        self, rank_benchmarks: bool = False, verbose: bool = False
+        self, rank_benchmarks: bool = False, verbose: bool = True
     ):
         test_results = {}
         benchmark_info = {}
         for benchmark in self.df[self.benchmark_var].unique():
             simple_mod = model(
-                formula=f"{self.loss_formula}+1",
+                formula=f"{self.loss_formula}1",
                 data=self.df.loc[self.df[self.benchmark_var] == benchmark],
                 factor_list=[self.exploratory_var],
                 dummy=False,
+                no_warnings=True,
             )
             benchmark_mod = model(
-                formula=f"{self.loss_formula}+{self.exploratory_var}",
+                formula=f"{self.loss_formula}{self.exploratory_var}",
                 data=self.df.loc[self.df[self.benchmark_var] == benchmark],
                 factor_list=[self.exploratory_var],
                 dummy=False,
+                no_warnings=True,
             )
             if verbose:
                 print(f"\nBenchmark: {benchmark}")
             test_results[benchmark] = glrt(
                 simple_mod,
                 benchmark_mod,
-                names=["simple", "algorithm"] if verbose else None,
+                names=["Simple model", "Model with Algorithm-effect"]
+                if verbose
+                else None,
                 returns=True,
             )
             if (
                 test_results[benchmark]["p"] < 0.05
                 and benchmark_mod.logLike > simple_mod.logLike
             ):
-                print(f"Benchmark {benchmark} is informative.")
+                print(
+                    f"=> Benchmark {benchmark:<{max([len(x) for x in self.df[self.benchmark_var].unique()])}} is informative."
+                )
                 benchmark_info[benchmark] = True
             else:
-                print(f"Benchmark {benchmark} is uninformative.")
-                benchmark_info[benchmark] = False
-        if any(test_results[b]["p"] > 0.05 for b, _ in test_results.items()):
-            if rank_benchmarks:
-                all_benchmarks_mod = model(
-                    formula=f"{self.loss_formula}+(0+{self.benchmark_var}|{self.exploratory_var})",
-                    data=self.df,
-                    factor_list=[self.exploratory_var],
-                    dummy=False,
+                print(
+                    f"=> Benchmark {benchmark:<{max([len(x) for x in self.df[self.benchmark_var].unique()])}} is uninformative."
                 )
-                print(all_benchmarks_mod.ranef_var)
+                benchmark_info[benchmark] = False
 
-    def test_fidelity(self, fidelity_var: str, verbose: bool = False):
+        # if any(test_results[b]["p"] > 0.05 for b, _ in test_results.items()):
+        if rank_benchmarks:
+            all_benchmarks_mod = model(
+                formula=f"{self.loss_formula}(0+{self.benchmark_var}|{self.exploratory_var})",
+                data=self.df,
+                factor_list=[self.exploratory_var],
+                dummy=False,
+            )
+            print("")
+            ranef_var = all_benchmarks_mod.ranef_var[:-1]
+
+            def rename_var_name(row):
+                return row["Name"].rsplit(self.benchmark_var, 1)[1]
+
+            ranef_var["Name"] = ranef_var.apply(rename_var_name, axis=1)
+            print(ranef_var.reset_index(drop=True))
+            names, ranks = [ranef_var["Name"].to_list(), ranef_var["Var"].to_list()]
+            x_pos = [0.2] * len(names)
+            plt.figure(figsize=(0.4 + 0.1 * max(len(x) for x in names), 3))
+            plt.scatter(x_pos, ranks, facecolors="none", edgecolors="black")
+            for i, name in enumerate(names):
+                plt.text(
+                    0.4,
+                    ranks[i],
+                    name,
+                )
+            plt.ylabel("Variance")
+            plt.title("Variance Ranking")
+            plt.ylim(
+                min(ranks) - 0.1 * (max(ranks) - min(ranks)),
+                max(ranks) + 0.1 * (max(ranks) - min(ranks)),
+            )  # Adjust margins as desired
+            plt.xlim(0, 0.5 + max(len(x) for x in names) / 10)
+            plt.xticks([])
+            plt.show()
+            uninformative = ranef_var.loc[
+                (ranef_var["Var"] * 10 <= ranef_var["Var"].max())
+                & (ranef_var.index != "Residual")
+                & (ranef_var["Var"] / 10 <= ranef_var["Var"].min())
+            ]["Name"].to_list()
+            print(
+                f"Benchmarks without algorithm variation: {[x.rsplit(self.benchmark_var,1)[0] for x in uninformative]}"
+            )
+            return benchmark_info, ranef_var
+        return benchmark_info
+
+    def test_fidelity(self, fidelity_var: str, verbose: bool = True):
         significances = {fidelity_var: 0, f"{fidelity_var}_group": 0}
         simple_formula = f"{self.loss_formula} {self.exploratory_var}{f' + (1|{self.benchmark_var})' if self.df[self.benchmark_var].nunique()>1 else ''}"
         simple_mod = model(
@@ -1238,19 +1338,23 @@ class model_builder:
             data=self.df,
             factor_list=[self.exploratory_var],
             dummy=self.df[self.benchmark_var].nunique() == 1,
+            no_warnings=True,
         )
         fidelity_mod = model(
             formula=f"{simple_formula} + {fidelity_var}",
             data=self.df,
             factor_list=[self.exploratory_var],
             dummy=self.df[self.benchmark_var].nunique() == 1,
+            no_warnings=True,
         )
         test_result = glrt(
             simple_mod,
             fidelity_mod,
-            names=["simple", "fidelity"] if verbose else None,
+            names=["Simple model", "Model with Fidelity-effect"] if verbose else None,
             returns=True,
         )
+        if verbose:
+            print("")
         if test_result["p"] < 0.05 and fidelity_mod.logLike > simple_mod.logLike:
             significances[fidelity_var] = 1
         fid_group_mod = model(
@@ -1262,7 +1366,9 @@ class model_builder:
         test_result = glrt(
             simple_mod,
             fid_group_mod,
-            names=["simple", "fidelity_group"] if verbose else None,
+            names=["Simple model", "Model with Fidelity-interaction-effect"]
+            if verbose
+            else None,
             returns=True,
         )
         if test_result["p"] < 0.05 and fid_group_mod.logLike > simple_mod.logLike:
@@ -1271,35 +1377,39 @@ class model_builder:
             significances[fidelity_var] == 1
             and significances[f"{fidelity_var}_group"] == 1
         ):
+            if verbose:
+                print("")
             test_result = glrt(
                 fidelity_mod,
                 fid_group_mod,
-                names=["fidelity", "fidelity_group"] if verbose else None,
+                names=[
+                    "Model with Fidelity-effect",
+                    "Model with Fidelity-interaction-effect",
+                ]
+                if verbose
+                else None,
                 returns=True,
             )
+            if verbose:
+                print("")
             if test_result["p"] < 0.05 and fid_group_mod.logLike > fidelity_mod.logLike:
-                if verbose:
-                    print(
-                        f"Fidelity {fidelity_var} as single and interaction effect are both significant, but interaction is more significant."
-                    )
+                print(
+                    f"=> Fidelity {fidelity_var} is both as simple and interaction effect significant, but interaction effect performs better."
+                )
                 self.fidelity_sig[fidelity_var] = 2
             else:
-                if verbose:
-                    print(
-                        f"Fidelity {fidelity_var} as single and interaction effect both significant, but as single factor is more significant."
-                    )
+                print(
+                    f"=> Fidelity {fidelity_var} is both as simple and interaction effect significant, but as simple effect performs better."
+                )
                 self.fidelity_sig[fidelity_var] = 1
         elif significances[fidelity_var] == 1:
-            if verbose:
-                print(f"Fidelity {fidelity_var} as single factor significant.")
+            print(f"=> Fidelity {fidelity_var} as simple effect is significant.")
             self.fidelity_sig[fidelity_var] = 1
         elif significances[f"{fidelity_var}_group"] == 1:
-            if verbose:
-                print(f"Fidelity {fidelity_var} as interaction is significant.")
+            print(f"=>  Fidelity {fidelity_var} as interaction effect is significant.")
             self.fidelity_sig[fidelity_var] = 2
         else:
-            if verbose:
-                print(f"Fidelity {fidelity_var} is not significant.")
+            print(f"=> Fidelity {fidelity_var} is not a significant effect.")
             self.fidelity_sig[fidelity_var] = 0
 
     def full_test(self, verbose: bool = False):

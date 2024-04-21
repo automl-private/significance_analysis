@@ -61,32 +61,32 @@ def add_rel_ranks(row, data: pd.DataFrame, benchmark: str, time: str):
     )
 
 
-def add_regret(df: pd.DataFrame, benchmark_variable, normalize: False):
+def add_regrets(df: pd.DataFrame, benchmark_variable):
     best = {}
     ranges = {}
-    print("⚙️ Preparing regret", end="\r", flush=True)
+    # print(df.head(20000))
+    print(f"{'⚙️ Preparing regret':<100}", end="\r", flush=True)
     for benchmark in df[benchmark_variable].unique():
+        # print(benchmark)
+        # print(df.loc[df[benchmark_variable] == benchmark])
         best[benchmark] = min(df.loc[df[benchmark_variable] == benchmark]["value"])
         ranges[benchmark] = (
             max(df.loc[df[benchmark_variable] == benchmark]["value"]) - best[benchmark]
         )
 
-    def calculate_simple_regret(row, normalize: bool = False):
-        if normalize:
-            return (
+    def calculate_regrets(row):
+        return pd.Series(
+            [
+                abs(best[row[benchmark_variable]] - row["value"]),
                 abs(best[row[benchmark_variable]] - row["value"])
-                / ranges[row[benchmark_variable]]
-            )
-        return abs(best[row[benchmark_variable]] - row["value"])
+                / ranges[row[benchmark_variable]],
+            ]
+        )
 
-    if normalize:
-        print(f"⚙️ {'Adding regret':<100}", end="\r", flush=True)
-        df["regret"] = df.apply(calculate_simple_regret, axis=1, normalize=True)
-        print(f"{'✅ Adding regret done':<100}")
-    else:
-        print(f"{'⚙️ Adding normalized regret':<100}", end="\r", flush=True)
-        df["norm_regret"] = df.apply(calculate_simple_regret, axis=1, normalize=False)
-        print(f"{'✅ Adding normalized regret done':<100}")
+    print(f"⚙️ {'Adding regret':<100}", end="\r", flush=True)
+    df[["simple_regret", "normalized_regret"]] = df.apply(calculate_regrets, axis=1)
+    print(f"{'✅ Adding regret done':<100}")
+
     return df
 
 
@@ -101,46 +101,70 @@ def rename_benchmarks(row, bench_dict: dict):
 def create_incumbent(
     data, f_space, benchmarks, algos, benchmark_variable, algorithm_variable
 ):
-    dataset = pd.DataFrame()
-    for n_f, max_f in enumerate(f_space):
-        for b_n, bench in enumerate(benchmarks):
-            df_at_point = data.loc[
-                (data["used_fidelity"] <= max_f)
-                & (data[benchmark_variable] == bench)
-                & (data[algorithm_variable].isin(algos))
+    algo_fidelities = {}
+    for algo in algos:
+        for bench_prior in data.loc[data[algorithm_variable] == algo][
+            benchmark_variable
+        ].unique():
+            algo_fidelities[f"{algo}_{bench_prior}"] = np.array(f_space)[
+                np.array(f_space)
+                >= min(
+                    data.loc[
+                        (data[algorithm_variable] == algo)
+                        & (data[benchmark_variable] == bench_prior)
+                    ]["used_fidelity"]
+                )
             ]
-            for seed in df_at_point["seed"].unique():
+            algo_fidelities[f"{algo}_{bench_prior}"].sort()
+            # print(algo,bench_prior,algo_fidelities[f"{algo}_{bench_prior}"][:20])
+            # algo_fidelities[f"{algo}_{bench_prior}"].sort()
+
+    # print(data.loc[(data[algorithm_variable]=="hyperband")&(data["benchmark"]=="LC-167190")])
+
+    dataset = pd.DataFrame()
+    for prior in data["prior"].unique():
+        prior_df = data.loc[data["prior"] == prior]
+        # print(prior)
+        # print(len(prior_df))
+        prior_dataset = pd.DataFrame()
+        for seed in prior_df["seed"].unique():
+            bench_ds = pd.DataFrame()
+            for b_n, bench in enumerate(
+                prior_df.loc[prior_df[benchmark_variable].isin(benchmarks)][
+                    benchmark_variable
+                ].unique()
+            ):
                 print(
-                    f"{f'⚙️ Fidelity {n_f+1}/{len(f_space)}, Benchmark {b_n+1}/{len(benchmarks)}':<100}",
+                    f"{f'⚙️ Seed {seed+1}/{len(data.seed.unique())}, Benchmark {b_n+1}/{len(benchmarks)}':<100}",
                     end="\r",
                     flush=True,
                 )
+                seed_bench_df = prior_df.loc[prior_df["seed"] == seed].loc[
+                    prior_df[benchmark_variable] == bench
+                ]
                 for algo in algos:
-                    if (
-                        len(
-                            df_at_point.loc[
-                                (df_at_point["seed"] == seed)
-                                & (df_at_point["algorithm"] == algo)
-                            ]
-                        )
-                        > 0
-                    ):
-                        df_criteria = (
-                            df_at_point.loc[
-                                (df_at_point["seed"] == seed)
-                                & (df_at_point["algorithm"] == algo)
-                            ]
-                            .iloc[-1]
-                            .to_frame()
-                            .T
-                        )
-                        df_criteria["used_fidelity"] = max_f
-                        dataset = pd.concat([dataset, df_criteria], ignore_index=True)
-        dataset[["value", "used_fidelity"]] = dataset[["value", "used_fidelity"]].astype(
-            float
-        )
-        dataset["seed"] = dataset["seed"].astype(int)
-    dataset = dataset.loc[dataset["used_fidelity"] <= max(f_space)]
+                    algo_df = seed_bench_df.loc[seed_bench_df[algorithm_variable] == algo]
+                    # if algo=="hyperband":
+                    #     print(algo_df[:20])
+                    #     print(algo_df.set_index('used_fidelity')[:20])
+                    #     print(algo_df.set_index('used_fidelity').reindex(algo_fidelities[f"{algo}_{bench}"])[:20])
+                    #     print(algo_df.set_index('used_fidelity').reindex(algo_fidelities[f"{algo}_{bench}"]).fillna(np.NaN)[:20])
+                    #     print(algo_df.set_index('used_fidelity').reindex(algo_fidelities[f"{algo}_{bench}"]).fillna(np.NaN).sort_values("used_fidelity")[:20])
+                    algo_df = (
+                        algo_df.set_index("used_fidelity")
+                        .reindex(algo_fidelities[f"{algo}_{bench}"])
+                        .fillna(np.NaN)
+                        .sort_values("used_fidelity")
+                        .reset_index()
+                        .ffill()
+                    )
+                    # print(algo_df)
+                    bench_ds = pd.concat([bench_ds, algo_df], ignore_index=True)
+                # print(bench_ds["algorithm"].value_counts())
+            # print(bench_ds.head(20))
+            prior_dataset = pd.concat([prior_dataset, bench_ds], ignore_index=True)
+        dataset = pd.concat([dataset, prior_dataset], ignore_index=True)
+
     return dataset
 
 
@@ -202,14 +226,15 @@ figures["fig5"] = [
 def get_dataset(
     dataset_name: str,
     algos: typing.Union[list[str], str] = None,
-    f_range: list[float] = (1, 24),
+    f_range: list[float] = (0, 24),
     f_steps: int = None,
     priors: list[str] = None,
     benchmarks: list[str] = None,
     rel_ranks: bool = False,
 ):
+    data = load_priorband_data()
     if not priors:
-        priors = ["at25", "bad"]
+        priors = data["prior"].unique()
     if not benchmarks:
         benchmarks = std_benchmarks
     if os.path.exists(f"datasets/{dataset_name}.parquet"):
@@ -221,29 +246,35 @@ def get_dataset(
     benchmark_variable = "bench_prior"
     time_variable = "used_fidelity"
 
-    f_space = (
-        np.linspace(
-            f_range[0], f_range[1], f_steps if f_steps else f_range[1] - f_range[0] + 1
-        )
-        .round(2)
-        .tolist()
-    )
-
-    data = load_priorband_data()
     data = data.loc[
         (data[algorithm_variable].isin(algos))
         & (data["benchmark"].isin(benchmarks))
         & (data["prior"].isin(priors))
     ]
+    data["used_fidelity"] = data["used_fidelity"].round(8)
+    f_space = (
+        (
+            np.linspace(
+                f_range[0],
+                f_range[1],
+                f_steps if f_steps else f_range[1] - f_range[0] + 1,
+            )
+            .round(2)
+            .tolist()
+        )
+        if f_steps != 0
+        else data[
+            data["used_fidelity"].between(f_range[0], f_range[1], inclusive="both")
+        ]["used_fidelity"].unique()
+    )
+
     data["benchmark"] = data.apply(rename_benchmarks, bench_dict=label_dict, axis=1)
     data["bench_prior"] = data.apply(combine_bench_prior, axis=1)
-    data = add_regret(data, benchmark_variable=benchmark_variable, normalize=True)
-    data = add_regret(data, benchmark_variable=benchmark_variable, normalize=False)
     benchmarks_split = data[benchmark_variable].unique()
-
     data = create_incumbent(
         data, f_space, benchmarks_split, algos, benchmark_variable, algorithm_variable
     )
+    data = add_regrets(data, benchmark_variable=benchmark_variable)
     if rel_ranks:
         print(f"{'⚙️ Adding relative ranks':<100}", end="\r", flush=True)
         data["rel_rank"] = data.apply(
