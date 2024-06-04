@@ -1,14 +1,3 @@
-"""import os
-import pickle
-import sys
-
-import matplotlib.pyplot as plt
-from sklearn.cluster import KMeans
-import tabulate
-from autorank import autorank, create_report, plot_stats
-from matplotlib.gridspec import GridSpec
-from matplotlib.ticker import MultipleLocator"""
-# import itertools
 import os
 import typing
 
@@ -182,6 +171,7 @@ std_benchmarks = [
     "lm1b_transformer_2048",
     "translatewmt_xformer_64",
 ]
+
 label_dict = {
     "random_search": "RS",
     "hyperband": "HB",
@@ -308,3 +298,190 @@ def convert_to_autorank(
             & (data[budget_variable] >= min_f)
         ][value_variable].reset_index(drop=True)
     return df_autorank
+
+
+def add_regret(df: pd.DataFrame, normalize: False):
+    best = {}
+    ranges = {}
+    print("⚙️ Preparing regret", end="\r", flush=True)
+    for benchmark in df["bench_prior"].unique():
+        best[benchmark] = min(df.loc[df["bench_prior"] == benchmark]["value"])
+        ranges[benchmark] = (
+            max(df.loc[df["bench_prior"] == benchmark]["value"]) - best[benchmark]
+        )
+
+    def calculate_simple_regret(row, normalize: bool = False):
+        if normalize:
+            return (
+                abs(best[row["bench_prior"]] - row["value"]) / ranges[row["bench_prior"]]
+            )
+        return abs(best[row["bench_prior"]] - row["value"])
+
+    if normalize:
+        print("⚙️ Adding regret       ", end="\r", flush=True)
+        df["regret"] = df.apply(calculate_simple_regret, axis=1, normalize=True)
+        print("✅ Adding regret done                      ")
+    else:
+        print("⚙️ Adding normalized regret       ", end="\r", flush=True)
+        df["norm_regret"] = df.apply(calculate_simple_regret, axis=1, normalize=False)
+        print("✅ Adding normalized regret done                      ")
+    return df
+
+
+def create_priorband_benchPrior_relRanks_f24():
+    algorithm = "algorithm"
+    benchmark = "bench_prior"
+    time = "used_fidelity"
+    algos = [
+        "pb_mutation_dynamic_geometric-default-at-target",
+        "random_search",
+        "hyperband",
+    ]
+    fs = [24]
+    f_space = np.linspace(1, max(fs), max(fs)).tolist()
+
+    benchmarks = [
+        "jahs_cifar10",
+        "jahs_colorectal_histology",
+        "jahs_fashion_mnist",
+        "lcbench-126026",
+        "lcbench-167190",
+        "lcbench-168330",
+        "lcbench-168910",
+        "lcbench-189906",
+        "cifar100_wideresnet_2048",
+        "imagenet_resnet_512",
+        "lm1b_transformer_2048",
+        "translatewmt_xformer_64",
+    ]
+    label_dict = {
+        "random_search": "RS",
+        "hyperband": "HB",
+        "pb_mutation_dynamic_geometric-default-at-target": "PB",
+        "jahs_cifar10": "JAHS-C10",
+        "jahs_colorectal_histology": "JAHS-CH",
+        "jahs_fashion_mnist": "JAHS-FM",
+        "lcbench-126026": "LC-126026",
+        "lcbench-167190": "LC-167190",
+        "lcbench-168330": "LC-168330",
+        "lcbench-168910": "LC-168910",
+        "lcbench-189906": "LC-189906",
+        "cifar100_wideresnet_2048": "PD1-Cifar100",
+        "imagenet_resnet_512": "PD1-ImageNet",
+        "lm1b_transformer_2048": "PD1-LM1B",
+        "translatewmt_xformer_64": "PD1-WMT",
+        "random_search_prior": "RS+Prior",
+        "bo": "BO",
+        "pibo-no-default": "PiBO",
+        "bohb": "BOHB",
+        "priorband_bo": "PriorBand+BO",
+    }
+
+    data = load_priorband_data()
+    data = data.loc[
+        (data[algorithm].isin(algos))
+        & (data["benchmark"].isin(benchmarks))
+        & (data["prior"].isin(["at25", "bad"]))
+    ]
+    data["bench_prior"] = data.apply(combine_bench_prior, axis=1)
+    data.drop(columns=["benchmark", "prior"], inplace=True)
+    benchmarks = data[benchmark].unique()
+    max_f = max(fs)
+    data = create_incumbent(data, fs, f_space, benchmarks, algos, benchmark, algorithm)[
+        max_f
+    ]
+    print(f"⚙️ F {max_f}: Adding relative ranks             ", end="\r", flush=True)
+    data["rel_rank"] = data.apply(
+        add_rel_ranks, data=data, benchmark=benchmark, time=time, axis=1
+    )
+    print(f"⚙️ F {max_f}: Renaming algorithms             ", end="\r", flush=True)
+    data[algorithm] = data.apply(rename_algos, algo_dict=label_dict, axis=1)
+    print("✅ Dataset loaded                   ", end="\r", flush=True)
+    return data
+
+
+def create_piBo_benchPrior_relRanks_f24():
+    algorithm = "algorithm"
+    benchmark = "bench_prior"
+    time = "used_fidelity"
+    algos = ["random_search_prior", "priorband_bo", "pibo-no-default", "bo", "bohb"]
+    fs = [24]
+    f_space = np.linspace(1, max(fs), max(fs)).tolist()
+
+    benchmarks = [
+        "jahs_cifar10",
+        "jahs_colorectal_histology",
+        "jahs_fashion_mnist",
+        "lcbench-126026",
+        "lcbench-167190",
+        "lcbench-168330",
+        "lcbench-168910",
+        "lcbench-189906",
+        "cifar100_wideresnet_2048",
+        "imagenet_resnet_512",
+        "lm1b_transformer_2048",
+        "translatewmt_xformer_64",
+    ]
+    label_dict = {
+        "random_search": "RS",
+        "hyperband": "HB",
+        "pb_mutation_dynamic_geometric-default-at-target": "PB",
+        "jahs_cifar10": "JAHS-C10",
+        "jahs_colorectal_histology": "JAHS-CH",
+        "jahs_fashion_mnist": "JAHS-FM",
+        "lcbench-126026": "LC-126026",
+        "lcbench-167190": "LC-167190",
+        "lcbench-168330": "LC-168330",
+        "lcbench-168910": "LC-168910",
+        "lcbench-189906": "LC-189906",
+        "cifar100_wideresnet_2048": "PD1-Cifar100",
+        "imagenet_resnet_512": "PD1-ImageNet",
+        "lm1b_transformer_2048": "PD1-LM1B",
+        "translatewmt_xformer_64": "PD1-WMT",
+        "random_search_prior": "RS+Prior",
+        "bo": "BO",
+        "pibo-no-default": "PiBO",
+        "bohb": "BOHB",
+        "priorband_bo": "PriorBand+BO",
+    }
+
+    data = load_priorband_data()
+    data = data.loc[
+        (data[algorithm].isin(algos))
+        & (data["benchmark"].isin(benchmarks))
+        & (data["prior"].isin(["at25", "bad"]))
+    ]
+    data["bench_prior"] = data.apply(combine_bench_prior, axis=1)
+    data.drop(columns=["benchmark", "prior"], inplace=True)
+    benchmarks = data[benchmark].unique()
+    max_f = max(fs)
+    data = create_incumbent(data, fs, f_space, benchmarks, algos, benchmark, algorithm)[
+        max_f
+    ]
+    print(f"⚙️ F {max_f}: Adding relative ranks             ", end="\r", flush=True)
+    data["rel_rank"] = data.apply(
+        add_rel_ranks, data=data, benchmark=benchmark, time=time, axis=1
+    )
+    print(f"⚙️ F {max_f}: Renaming algorithms             ", end="\r", flush=True)
+    data[algorithm] = data.apply(rename_algos, algo_dict=label_dict, axis=1)
+    print("✅ Dataset loaded                   ", end="\r", flush=True)
+    data.to_parquet("pibo_benchPrior_relRanks_f24_meta.parquet")
+    return data
+
+
+def add_benchmark_metafeatures(data: pd.DataFrame):
+    meta_feature_df = pd.read_csv("benchmark_metafeatures.csv")
+
+    def add_meta_features(row):
+        return meta_feature_df.loc[
+            meta_feature_df["code_name"] == row["bench_prior"].rsplit("_", 1)[0]
+        ][
+            ["# Vars", "# cont. Vars", "# cond. Vars", "# cat. Vars", "log int", "int"]
+        ].values[
+            0
+        ]
+
+    data[
+        ["n_Vars", "n_cont_Vars", "n_cond_Vars", "n_cat_Vars", "log_int", "int"]
+    ] = data.apply(add_meta_features, axis=1).to_list()
+    return data
