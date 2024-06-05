@@ -12,7 +12,10 @@ pd.set_option("display.width", 10000)
 
 
 def load_priorband_data():
-    df = pd.read_parquet("datasets/full_priorband_data.parquet")
+    df = pd.read_parquet(
+        "../significance_analysis_example/datasets/full_priorband_data.parquet"
+    )
+    print(df)
     df = df.reset_index()
     df_collection = []
     for seed_nr in range(50):
@@ -222,14 +225,17 @@ def get_dataset(
     benchmarks: list[str] = None,
     rel_ranks: bool = False,
 ):
+    if os.path.exists(
+        f"../significance_analysis_example/datasets/{dataset_name.rsplit('_')[0]}/{dataset_name}.parquet"
+    ):
+        return pd.read_parquet(
+            f"../significance_analysis_example/datasets/{dataset_name.rsplit('_')[0]}/{dataset_name}.parquet"
+        )
     data = load_priorband_data()
     if not priors:
         priors = data["prior"].unique()
     if not benchmarks:
         benchmarks = std_benchmarks
-    if os.path.exists(f"datasets/{dataset_name}.parquet"):
-        data = pd.read_parquet(f"datasets/{dataset_name}.parquet")
-        return data
 
     algos = figures[algos] if isinstance(algos, str) else algos
     algorithm_variable = "algorithm"

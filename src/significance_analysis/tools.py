@@ -270,7 +270,9 @@ class RankResult(
         )
 
 
-def cd_diagram(result, reverse, width, system_id="algorithm", parent_ax=None):
+def cd_diagram(
+    result, reverse: bool = False, width: float = 4, system_id="algorithm", parent_ax=None
+):
     """
     Creates a Critical Distance diagram.
     """
