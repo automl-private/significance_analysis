@@ -53,8 +53,7 @@ def model(
     formula: str,
     data: pd.DataFrame,
     system_id: str = "algorithm",
-    factor: str = None,
-    factor_list: list[str] = None,
+    factor: typing.Union[str, list[str]] = None,
     dummy=True,
     no_warnings=True,
 ) -> typing.Union[Lm, Lmer]:
@@ -73,10 +72,11 @@ def model(
     )
     factors = {system_id: list(data[system_id].unique())}
     if factor:
-        factors[factor] = list(data[factor].unique())
-    if factor_list:
-        for factor in factor_list:
+        if isinstance(factor, str):
             factors[factor] = list(data[factor].unique())
+        else:
+            for f in factor:
+                factors[f] = list(data[f].unique())
     model.fit(
         factors=factors,
         REML=False,
@@ -653,14 +653,14 @@ class model_builder:
         simpel_model = model(
             formula=f"{self.loss_formula}+{self.exploratory_var}",
             data=self.df,
-            factor_list=[self.exploratory_var],
+            # factor_list=[self.exploratory_var],
             dummy=False,
             no_warnings=True,
         )
         seed_model = model(
             formula=f"{self.loss_formula}+(0+{self.exploratory_var}|seed)",
             data=self.df,
-            factor_list=[self.exploratory_var],
+            # factor_list=[self.exploratory_var],
             dummy=False,
             no_warnings=True,
         )
@@ -695,14 +695,14 @@ class model_builder:
             simple_mod = model(
                 formula=f"{self.loss_formula}1",
                 data=self.df.loc[self.df[self.benchmark_var] == benchmark],
-                factor_list=[self.exploratory_var],
+                # factor_list=[self.exploratory_var],
                 dummy=False,
                 no_warnings=True,
             )
             benchmark_mod = model(
                 formula=f"{self.loss_formula}{self.exploratory_var}",
                 data=self.df.loc[self.df[self.benchmark_var] == benchmark],
-                factor_list=[self.exploratory_var],
+                # factor_list=[self.exploratory_var],
                 dummy=False,
                 no_warnings=True,
             )
@@ -734,7 +734,7 @@ class model_builder:
             all_benchmarks_mod = model(
                 formula=f"{self.loss_formula}(0+{self.benchmark_var}|{self.exploratory_var})",
                 data=self.df,
-                factor_list=[self.exploratory_var],
+                # factor_list=[self.exploratory_var],
                 dummy=False,
             )
             print("")
@@ -784,14 +784,14 @@ class model_builder:
         simple_mod = model(
             formula=simple_formula,
             data=self.df,
-            factor_list=[self.exploratory_var],
+            # factor_list=[self.exploratory_var],
             dummy=self.df[self.benchmark_var].nunique() == 1,
             no_warnings=True,
         )
         fidelity_mod = model(
             formula=f"{simple_formula} + {fidelity_var}",
             data=self.df,
-            factor_list=[self.exploratory_var],
+            # factor_list=[self.exploratory_var],
             dummy=self.df[self.benchmark_var].nunique() == 1,
             no_warnings=True,
         )
@@ -808,7 +808,7 @@ class model_builder:
         fid_group_mod = model(
             formula=f"{simple_formula} + {self.exploratory_var}:{fidelity_var}",
             data=self.df,
-            factor_list=[self.exploratory_var],
+            # factor_list=[self.exploratory_var],
             dummy=self.df[self.benchmark_var].nunique() == 1,
         )
         test_result = glrt(
