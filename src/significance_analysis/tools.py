@@ -1,6 +1,7 @@
 import math
 import typing
 
+import matplotlib
 import numpy as np
 import pandas as pd
 from autorank._util import RankResult, get_sorted_rank_groups
@@ -350,8 +351,7 @@ def glrt(mod1, mod2, verbose: bool = False) -> dict[str, typing.Any]:
     Args:
         mod1 (Lmer): First, simple model, Null-Hypothesis assumes that this model contains not significantly less information as the second model
         mod2 (Lmer): Second model, Alternative Hypothesis assumes that this model contains significant new information
-        names (list[str], optional): Names of the models for the output. Defaults to None.
-        returns (bool, optional): If True, the function returns a dictionary with the Chi-Square-Score, Degrees of Freedom and p-value of the test. Defaults to False.
+        verbose (bool, optional): Outputting of results. Defaults to False.
 
     Returns:
         dict[str,typing.Any]: Result dictionary with Chi-Square-Score, Degrees of Freedom and p-value of the test
@@ -362,7 +362,7 @@ def glrt(mod1, mod2, verbose: bool = False) -> dict[str, typing.Any]:
     Examples:
         >>> mod1 = model("value ~ algorithm + (1|seed)", data)
         >>> mod2 = model("value ~ algorithm + (1|seed) + (1|benchmark)", data)
-        >>> glrt(mod1,mod2,returns=True)
+        >>> glrt(mod1,mod2)
         {'p': 0.0, 'chi_square': 7.0, 'df': 1}
     """
     assert (
@@ -451,7 +451,7 @@ def model(
     return model
 
 
-def benchmark_clustering(
+def metafeature_analysis(
     dataset: pd.DataFrame,
     algorithms: typing.Tuple[str, str],
     metafeature_var: str,
@@ -460,7 +460,25 @@ def benchmark_clustering(
     loss_var: str = VALUE,
     fidelity_var: str = BUDGET,
     path: str = "",
-):
+) -> typing.Tuple[matplotlib.figure.Figure, pd.DataFrame]:
+    """Metafeature analysis for a given dataset
+
+    Args:
+        dataset (pd.DataFrame): Dataset to be analyzed
+        algorithms (typing.Tuple[str, str]): Algorithms to be compared
+        metafeature_var (str): Metafeature to be analyzed
+        algorithm_var (str, optional): Algorithm variable. Defaults to ALGORITHM.
+        benchmark_var (str, optional): Benchmark variable. Defaults to BENCHMARK.
+        loss_var (str, optional): Loss variable. Defaults to VALUE.
+        fidelity_var (str, optional): Fidelity veriable. Defaults to BUDGET.
+        path (str, optional): Path to save significance scores. Defaults to "".
+
+    Raises:
+        ValueError: Error if the named algorithms are not in the dataset
+
+    Returns:
+        typing.Tuple[plt.figure, pd.DataFrame]: CD-diagram and dataframe with significance scores
+    """
     dataset["benchmark_variant"] = dataset.apply(
         lambda x: f"{x[benchmark_var]} x {x[metafeature_var]}", axis=1
     )
@@ -562,7 +580,19 @@ def seed_dependency_check(
     loss_var: str = VALUE,
     seed_var: str = SEED,
     verbose: bool = True,
-):
+) -> list[str]:
+    """Check for seed dependency in a dataset
+
+    Args:
+        data (pd.DataFrame): Dataset to be analyzed
+        algorithm_var (str, optional): Algorithm variable. Defaults to ALGORITHM.
+        loss_var (str, optional): Loss variable. Defaults to VALUE.
+        seed_var (str, optional): Seed variable. Defaults to SEED.
+        verbose (bool, optional): Verbosity of check. Defaults to True.
+
+    Returns:
+        list[str]: Algorithms that are likely influenced by the seed
+    """
     simple_model = model(
         formula=f"{loss_var}~{algorithm_var}",
         data=data,
@@ -608,7 +638,20 @@ def benchmark_information_check(
     loss_var: str = VALUE,
     rank_benchmarks: bool = False,
     verbose: bool = True,
-):
+) -> typing.Union[dict[str, bool], typing.Tuple[dict[str, bool], pd.DataFrame]]:
+    """Benchmark-wise check for variation between algorithms in a dataset.
+
+    Args:
+        data (pd.DataFrame): Dataset to be analyzed
+        algorithm_var (str, optional): Algorithm variable. Defaults to ALGORITHM.
+        benchmark_var (str, optional): Benchmark variable. Defaults to BENCHMARK.
+        loss_var (str, optional): Loss variable. Defaults to VALUE.
+        rank_benchmarks (bool, optional): Ranking benchmarks (involves calculating the individual random effects - takes time!). Defaults to False.
+        verbose (bool, optional): Verbosity of the check. Defaults to True.
+
+    Returns:
+        typing.Union[dict[str, bool], typing.Tuple[dict[str, bool], pd.DataFrame]]: Informativeness of benchmarks and random effects if rank_benchmarks is True
+    """
     test_results = {}
     benchmark_info = {}
     for benchmark in data[benchmark_var].unique():
@@ -682,7 +725,17 @@ def fidelity_check(
     benchmark_var: str = BENCHMARK,
     loss_var: str = VALUE,
     verbose: bool = True,
-):
+) -> None:
+    """Check for the significance of a fidelity variable in a dataset
+
+    Args:
+        data (pd.DataFrame): Dataset to be analyzed
+        fidelity_var (str, optional): Fidelity variable. Defaults to BUDGET.
+        algorithm_var (str, optional): Algorithm variable. Defaults to ALGORITHM.
+        benchmark_var (str, optional): Benchmark variable. Defaults to BENCHMARK.
+        loss_var (str, optional): Loss variable. Defaults to VALUE.
+        verbose (bool, optional): Verbosity of the check. Defaults to True.
+    """
     significances = {}
     simple_formula = f"{loss_var} ~ {algorithm_var}{f' + (1|{benchmark_var})' if data[benchmark_var].nunique()>1 else ''}"
     simple_mod = model(
